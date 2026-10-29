@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EXIM WhatsApp Report Generator</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <p class="eyebrow">PT CHINLI PLASTIC MATERIALS INDONESIA</p>
+      <h1>EXIM WhatsApp Report Generator</h1>
+      <p class="sub">Baca file Excel secara lokal, pilih dokumen, atur jalur, lalu buat laporan siap salin ke WhatsApp.</p>
+    </header>
+    <section class="panel">
+      <h2>1. Unggah file Excel CEISA</h2>
+      <label class="file-label" for="excelFile">Pilih file .xlsx atau .xls untuk ditambahkan</label>
+      <input id="excelFile" type="file" accept=".xlsx,.xls,.xlsm">
+      <div class="file-actions">
+        <button id="clearFilesBtn" type="button" class="secondary" disabled>Hapus Semua File</button>
+      </div>
+      <div id="uploadedFiles" class="uploaded-files empty">Belum ada file Excel yang ditambahkan.</div>
+      <p id="fileStatus" class="hint">Pilih satu file, lalu pilih file berikutnya untuk menambahkannya. File diproses di browser ini; jangan unggah file Excel perusahaan ke repository GitHub.</p>
+    </section>
+    <section class="panel">
+      <h2>2. Filter laporan</h2>
+      <div class="grid">
+        <label>Jenis dokumen
+          <select id="docType" disabled>
+            <option value="">Unggah Excel terlebih dahulu</option>
+          </select>
+        </label>
+        <label>Keterangan pihak pada laporan
+          <select id="partyMode" disabled>
+            <option value="auto">Otomatis sesuai jenis dokumen</option>
+            <option value="customer">Customer</option>
+            <option value="supplier">Supplier</option>
+          </select>
+        </label>
+        <label class="wide">Nama Customer / Supplier
+          <select id="partyName" disabled>
+            <option value="__ALL__">Semua pihak</option>
+          </select>
+        </label>
+        <label>Jenis barang untuk laporan
+          <input id="goodsType" type="text" placeholder="Contoh: INSOLE + SCRAP">
+        </label>
+        <label id="dateLabel">Tanggal Masuk / Keluar
+          <input id="movementDate" type="date">
+        </label>
+      </div>
+      <p class="hint">Default mengikuti hasil sistem: dokumen Keluar = Customer, dokumen Masuk = Supplier. Dropdown Customer/Supplier hanya mengubah keterangan pada laporan; pengambilan nama pihak dan filter tetap mengikuti pemetaan data otomatis yang sudah ada.</p>
+    </section>
+    <section class="panel">
+      <div class="section-title">
+        <div>
+          <h2>3. Pengaturan jalur</h2>
+          <p class="hint">Semua dokumen HIJAU secara default. Centang nomor pendaftaran yang harus menjadi MERAH.</p>
+        </div>
+        <input id="redSearch" type="search" placeholder="Cari nomor / nama pihak" aria-label="Cari nomor atau nama pihak">
+      </div>
+      <div id="redList" class="red-list empty">Unggah Excel untuk menampilkan daftar dokumen.</div>
+    </section>
+    <section class="panel">
+      <h2>4. Pengecualian nomor daftar</h2>
+      <p class="hint">Centang nomor daftar yang tidak ingin dimasukkan ke laporan, atau ketik nomor secara manual. Pemilihan ini tidak menghapus data Excel.</p>
+      <label for="excludeSearch">Cari nomor daftar / nama pihak</label>
+      <input id="excludeSearch" type="search" placeholder="Cari nomor daftar atau nama pihak">
+      <div id="excludeList" class="exclude-list empty">Unggah Excel untuk menampilkan nomor daftar.</div>
+      <label for="excludeManual">Nomor daftar yang dikecualikan secara manual</label>
+      <textarea id="excludeManual" rows="3" placeholder="Masukkan nomor daftar, pisahkan dengan koma atau baris baru. Contoh: 023537, 023640"></textarea>
+      <p id="excludeStatus" class="hint" aria-live="polite">Belum ada nomor daftar yang dikecualikan.</p>
+    </section>
+    <section class="panel">
+      <h2>5. Pratinjau laporan WhatsApp</h2>
+      <div class="actions">
+        <button id="generateBtn" disabled>Buat / Perbarui Laporan</button>
+        <button id="copyBtn" class="secondary" disabled>Salin Laporan</button>
+      </div>
+      <textarea id="output" rows="18" placeholder="Laporan akan tampil di sini..." spellcheck="false"></textarea>
+      <p id="outputStatus" class="hint" aria-live="polite"></p>
+    </section>
+    <footer>Versi pengembangan · Pemrosesan Excel dilakukan di browser · Periksa hasil sebelum dikirim.</footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
