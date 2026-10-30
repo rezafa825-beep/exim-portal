@@ -8,24 +8,38 @@ import {addHistory,listHistory,getHistory,deleteHistory,deleteHistoryOlderThanDa
 const labels={company:'Company',invoice_number:'Invoice Number',packing_list_number:'Packing List Number',surat_jalan:'Surat Jalan',total_cif:'Total Harga / CIF',item_price:'Harga per Item',total_gw:'Total Gross Weight (GW)',total_nw:'Total Net Weight (NW)',package:'Kemasan',item_gw:'GW per Item',item_nw:'NW per Item',item_code:'Item Code',item_name:'Item Name',sku:'SKU Invoice vs Draft',quantity:'Quantity'};
 const docLabels={invoice:'Invoice',packing_list:'Packing List',surat_jalan:'Surat Jalan',draft_exim:'Draft CEISA'};
 
+function Dashboard({open}){
+  return <main className="portal-home">
+    <section className="home-hero"><div className="home-mark">RS</div><h1>REZA SYSTEM</h1><p className="home-slogan">Setiap kesulitan pasti ada kemudahan</p></section>
+    <section className="home-cards">
+      <button className="home-card" onClick={()=>open('validation')}><span className="home-icon">✓</span><h2>EXIM Validation</h2><p>Cross-check Invoice, Packing List, dan Draft EXIM / CEISA secara otomatis, lengkap dengan History dan Customer Master.</p><span className="home-go">Buka EXIM Validation →</span></button>
+      <button className="home-card" onClick={()=>open('report')}><span className="home-icon">💬</span><h2>WhatsApp Report</h2><p>Buat laporan format WhatsApp dari satu atau beberapa file Excel, dengan pengaturan jalur dan pengecualian nomor daftar.</p><span className="home-go">Buka WhatsApp Report →</span></button>
+    </section>
+    <footer className="home-foot">REZA SYSTEM · File Excel diproses langsung di browser Anda</footer>
+  </main>
+}
+
 function App(){
   const [page,setPage]=useState('new');
-  const [module,setModule]=useState('validation');
+  const [module,setModule]=useState('home');
+  const [reportOpened,setReportOpened]=useState(false);
   const [result,setResult]=useState(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const go=p=>{setPage(p);setError('');if(p!=='new')setResult(null)};
+  const openModule=m=>{if(m==='report')setReportOpened(true);setModule(m)};
   return <div className="portal-root">
     <header className="portal-bar">
-      <div className="portal-brand"><span className="portal-mark">EX</span><span><b>EXIM PORTAL</b><small>INTEGRATED EXIM MANAGEMENT</small></span></div>
+      <button type="button" className="portal-brand" onClick={()=>openModule('home')} aria-label="REZA SYSTEM - kembali ke Dashboard"><span className="portal-mark">RS</span><span><b>REZA SYSTEM</b><small>INTEGRATED EXIM MANAGEMENT</small></span></button>
       <nav className="portal-menu">
-        <button className={module==='validation'?'selected':''} onClick={()=>setModule('validation')}>Validasi EXIM</button>
-        <button className={module==='report'?'selected':''} onClick={()=>setModule('report')}>WhatsApp Report</button>
-        <button className="coming-soon" onClick={()=>window.alert('Modul IT Inventory belum diintegrasikan.')}>IT Inventory <small>SEGERA</small></button>
+        <button className={module==='home'?'selected':''} onClick={()=>openModule('home')}>⌂ Dashboard</button>
+        <button className={module==='validation'?'selected':''} onClick={()=>openModule('validation')}>EXIM Validation</button>
+        <button className={module==='report'?'selected':''} onClick={()=>openModule('report')}>WhatsApp Report</button>
       </nav>
     </header>
-    {module==='report' ? <main className="portal-report"><iframe title="EXIM WhatsApp Report Generator" src="./report/index.html"/></main> :
-    <div className="shell">
+    {module==='home'&&<Dashboard open={openModule}/>}
+    {reportOpened&&<main className={'portal-report'+(module==='report'?'':' is-hidden')}><iframe title="WhatsApp Report Generator" src="./report/index.html"/></main>}
+    <div className={'shell'+(module==='validation'?'':' is-hidden')}>
       <aside><div className="brand">EXIM<span>VALIDATION</span></div><div className="brand-sub">DOCUMENT CONTROL</div>
         <nav>{[['new','＋','New Validation'],['history','◷','History'],['customers','⚙','Customer Master']].map(([p,i,t])=><button key={p} className={page===p?'active':''} onClick={()=>go(p)}><span>{i}</span>{t}</button>)}</nav>
         <div className="side-note"><b>100% CLIENT-SIDE</b><br/>File stays in your browser<br/><small>GitHub Pages ready</small></div>
@@ -35,7 +49,7 @@ function App(){
         {page==='history'&&<History onOpen={x=>{setResult(x);setPage('new')}}/>}
         {page==='customers'&&<Customers/>}
       </main>
-    </div>}
+    </div>
   </div>
 }
 

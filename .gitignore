@@ -1,0 +1,8 @@
+# Dependensi dan hasil build (dibuat otomatis)
+node_modules/
+dist/
+
+# Log dan file sistem
+*.log
+.DS_Store
+Thumbs.db

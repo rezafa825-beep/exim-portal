@@ -1,0 +1,190 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EXIM Portal | PT Chinli</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f3f6fb;
+      color: #172b4d;
+    }
+
+    header {
+      background: #12345a;
+      color: white;
+      padding: 28px 20px;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0 0 10px;
+      font-size: 28px;
+    }
+
+    header p {
+      margin: 0;
+      color: #d8e5f5;
+      font-size: 14px;
+    }
+
+    main {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+
+    .intro {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .intro h2 {
+      margin-bottom: 8px;
+    }
+
+    .intro p {
+      color: #64748b;
+      line-height: 1.6;
+    }
+
+    .systems {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 22px;
+    }
+
+    .card {
+      background: white;
+      padding: 28px;
+      border-radius: 16px;
+      border: 1px solid #e0e7f0;
+      box-shadow: 0 5px 18px rgba(25, 45, 75, 0.06);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .icon {
+      font-size: 36px;
+      margin-bottom: 18px;
+    }
+
+    .card h3 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+
+    .card p {
+      color: #64748b;
+      font-size: 14px;
+      line-height: 1.7;
+      flex: 1;
+    }
+
+    .button {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 12px 18px;
+      background: #1769aa;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .button:hover {
+      background: #0e4e83;
+    }
+
+    footer {
+      text-align: center;
+      padding: 25px 15px;
+      color: #718096;
+      font-size: 12px;
+    }
+
+    @media (max-width: 650px) {
+      .systems {
+        grid-template-columns: 1fr;
+      }
+
+      header h1 {
+        font-size: 23px;
+      }
+
+      main {
+        margin-top: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>EXIM PORTAL</h1>
+    <p>PT Chinli Plastic Materials Indonesia</p>
+  </header>
+
+  <main>
+    <section class="intro">
+      <h2>Selamat Datang</h2>
+      <p>
+        Pilih sistem yang ingin Anda gunakan untuk mendukung
+        pekerjaan Export Import (EXIM).
+      </p>
+    </section>
+
+    <section class="systems">
+
+      <article class="card">
+        <div class="icon">📑</div>
+        <h3>Pengecekan Dokumen EXIM</h3>
+        <p>
+          Sistem validasi untuk membantu memeriksa kesesuaian
+          Invoice, Packing List, dan Draft EXIM sebelum proses
+          dokumen dilanjutkan.
+        </p>
+        <a
+          class="button"
+          href="https://rezafa825-beep.github.io/exim-validation-system/"
+          target="_blank"
+          rel="noopener noreferrer">
+          Buka Sistem Pengecekan ↗
+        </a>
+      </article>
+
+      <article class="card">
+        <div class="icon">💬</div>
+        <h3>Sistem Laporan WhatsApp</h3>
+        <p>
+          Sistem untuk membantu membuat laporan secara otomatis
+          dengan format yang praktis dan siap digunakan untuk
+          kebutuhan komunikasi pekerjaan.
+        </p>
+        <a
+          class="button"
+          href="https://rezafa825-beep.github.io/exim-whatsapp-report-generator/"
+          target="_blank"
+          rel="noopener noreferrer">
+          Buka Sistem Laporan ↗
+        </a>
+      </article>
+
+    </section>
+  </main>
+
+  <footer>
+    EXIM Portal · PT Chinli Plastic Materials Indonesia
+  </footer>
+
+</body>
+</html>

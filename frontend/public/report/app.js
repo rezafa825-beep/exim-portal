@@ -81,6 +81,14 @@ function uniqueSortedDates(items) {
     return new Date(ya,ma-1,da)-new Date(yb,mb-1,db);
   });
 }
+// Urutkan nomor daftar dan nomor segel secara natural: angka 2 sebelum 10,
+// huruf A-Z tanpa membedakan kapitalisasi.
+function naturalSort(a, b) {
+  return String(a).localeCompare(String(b), "id", {
+    numeric: true,
+    sensitivity: "base"
+  });
+}
 function fmtQty(n) { return new Intl.NumberFormat("id-ID", {maximumFractionDigits: 3}).format(n); }
 function readSheet(wb, name) {
   const ws = wb.Sheets[name];
@@ -330,11 +338,11 @@ function buildReport() {
       routePurposeGroups.get(groupKey).docs.push(r);
     });
     for (const {route, purpose, docs:purposeDocs} of routePurposeGroups.values()) {
-      const numbers = purposeDocs.map(r => r.regNo).filter(n => n && !n.startsWith("(") && n !== "0");
+      const numbers = purposeDocs.map(r => r.regNo).filter(n => n && !n.startsWith("(") && n !== "0").sort(naturalSort);
       output.push(`${type.label.toUpperCase()} (${route} | ${purpose}) : ${numbers.join(", ") || "-"}`);
     }
 
-    const allSeals = [...new Set(partyDocs.flatMap(r => r.seals))];
+    const allSeals = [...new Set(partyDocs.flatMap(r => r.seals))].sort(naturalSort);
     if (["27-out","27-in","23-in"].includes(type.value)) output.push(`No. Segel : ${allSeals.join(", ") || "-"}`);
     output.push(`Jumlah Dokumen : ${partyDocs.length} Dokumen`);
     output.push(`Jenis Barang : ${goodsType}`);
