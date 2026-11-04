@@ -189,8 +189,33 @@ function currentPartyLabelMode() {
   const selected = $("partyMode").value;
   return selected === "auto" ? currentPartyMode() : selected;
 }
+// Pisahkan input banyak nomor (baris baru, koma, titik koma), buang spasi tepi
+// dan nomor kosong, lalu hilangkan duplikat.
+function parseNumberList(text) {
+  return new Set(norm(text).split(/[\r\n,;]+/).map(s => key(s)).filter(Boolean));
+}
 function manualExcludedNumbers() {
-  return new Set(norm($("excludeManual").value).split(/[\n,;]+/).map(s => key(s)).filter(Boolean));
+  return parseNumberList($("excludeManual").value);
+}
+function manualRedNumbers() {
+  return parseNumberList($("redManual").value);
+}
+// Nomor daftar kosong "(Nomor daftar kosong)" atau "0" tidak pernah dicocokkan.
+function isMatchableRegNo(regNo) {
+  const k = key(regNo);
+  return !!k && !k.startsWith("(") && k !== "0";
+}
+// Jalur merah dicocokkan lewat NOMOR DAFTAR (bukan nomor aju), sehingga semua
+// record dengan nomor daftar yang sama mendapat jalur yang sama.
+function isManualRedRecord(r) {
+  return isMatchableRegNo(r.regNo) && manualRedNumbers().has(key(r.regNo));
+}
+function isRedRecord(r) {
+  return redNumbers.has(r.recordId) || isManualRedRecord(r);
+}
+function listPreview(items, max = 20) {
+  const shown = items.slice(0, max).join(", ");
+  return items.length > max ? `${shown}, dan ${items.length - max} lainnya` : shown;
 }
 function isExcluded(r) {
   return excludedNumbers.has(key(r.regNo)) || manualExcludedNumbers().has(key(r.regNo));
@@ -199,7 +224,27 @@ function updateExcludeStatus() {
   const manual = manualExcludedNumbers();
   const all = new Set([...excludedNumbers, ...manual]);
   const count = records.filter(r => all.has(key(r.regNo))).length;
-  $("excludeStatus").textContent = `${all.size} nomor daftar unik dikecualikan; ${count} dokumen cocok akan dikeluarkan dari laporan.`;
+  let text = `${all.size} nomor daftar unik dikecualikan; ${count} dokumen cocok akan dikeluarkan dari laporan.`;
+  if (records.length) {
+    const known = new Set(records.map(r => key(r.regNo)));
+    const missing = [...manual].filter(n => !known.has(n));
+    if (missing.length) text += ` Tidak ditemukan di file Excel (${missing.length}): ${listPreview(missing)}.`;
+  }
+  $("excludeStatus").textContent = text;
+}
+function updateRedStatus() {
+  const manual = manualRedNumbers();
+  const el = $("redStatus");
+  if (!manual.size) { el.textContent = "Belum ada nomor daftar jalur merah manual."; return; }
+  if (!records.length) { el.textContent = `${manual.size} nomor daftar unik dicatat; menunggu file Excel untuk dicocokkan.`; return; }
+  const countByReg = new Map();
+  records.forEach(r => { if (isMatchableRegNo(r.regNo)) { const k = key(r.regNo); countByReg.set(k, (countByReg.get(k) || 0) + 1); } });
+  const found = [...manual].filter(n => countByReg.has(n));
+  const missing = [...manual].filter(n => !countByReg.has(n));
+  const docCount = found.reduce((sum, n) => sum + countByReg.get(n), 0);
+  let text = `${manual.size} nomor daftar unik; ${found.length} ditemukan (${docCount} dokumen ditandai MERAH).`;
+  if (missing.length) text += ` Tidak ditemukan di file Excel (${missing.length}): ${listPreview(missing)}.`;
+  el.textContent = text;
 }
 function refreshPartyOptions() {
   const mode = currentPartyMode();
@@ -224,14 +269,15 @@ function renderRedList() {
   list.className="red-list";
   items.forEach(r => {
     const label=document.createElement("label"); label.className="red-row";
-    const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=redNumbers.has(r.recordId);
+    const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=isRedRecord(r);
+    if (isManualRedRecord(r)) { cb.disabled=true; cb.title="MERAH dari input nomor daftar manual"; }
     cb.addEventListener("change",()=>{ if(cb.checked) redNumbers.add(r.recordId); else redNumbers.delete(r.recordId); renderRedList(); updateOutput(); });
     const meta=document.createElement("span"); meta.className="meta";
     const title=document.createElement("strong"); title.textContent=r.regNo;
     const currentName = currentPartyMode() === "customer" ? r.customerName : r.supplierName;
     const small=document.createElement("small"); small.textContent=`${currentName || "(Nama pihak tidak ditemukan)"} · ${dateText(r.regDate)||"Tanggal daftar kosong"} · ${r.sourceName}`;
     meta.append(title,small); label.append(cb,meta);
-    if (redNumbers.has(r.recordId)) { const badge=document.createElement("span"); badge.className="red-flag"; badge.textContent="MERAH"; label.append(badge); }
+    if (isRedRecord(r)) { const badge=document.createElement("span"); badge.className="red-flag"; badge.textContent="MERAH"; label.append(badge); }
     list.append(label);
   });
 }
@@ -272,7 +318,8 @@ function renderUploadedFiles() {
   box.className = "uploaded-files";
   for (const [fileId, item] of uploadedFiles) {
     const row = document.createElement("div"); row.className = "uploaded-file";
-    const info = document.createElement("span"); info.textContent = `${item.name} — ${item.records.length} dokumen`;
+    const info = document.createElement("span"); const skippedDocs = item.allRecords.length - item.records.length;
+    info.textContent = `${item.name} — ${item.records.length} dokumen` + (skippedDocs ? ` (${skippedDocs} dokumen dilewati: nomor aju sudah ada dari file lain)` : "");
     const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "Hapus";
     remove.addEventListener("click", () => removeUploadedFile(fileId));
     row.append(info, remove); box.append(row);
@@ -282,9 +329,9 @@ function renderUploadedFiles() {
 function removeUploadedFile(fileId) {
   const item = uploadedFiles.get(fileId);
   if (!item) return;
-  item.records.forEach(r => redNumbers.delete(r.recordId));
+  item.allRecords.forEach(r => redNumbers.delete(r.recordId));
   uploadedFiles.delete(fileId);
-  records = [...uploadedFiles.values()].flatMap(x => x.records);
+  rebuildRecords();
   if (!records.length) {
     $("docType").disabled = true; $("partyMode").disabled = true; $("partyName").disabled = true;
     $("generateBtn").disabled = true; $("copyBtn").disabled = true;
@@ -297,7 +344,38 @@ function removeUploadedFile(fileId) {
     setupDocTypes(); refreshAll();
     $("fileStatus").textContent = `${uploadedFiles.size} file tersisa, ${records.length} dokumen dibaca.`;
   }
-  renderUploadedFiles(); updateExcludeStatus();
+  renderUploadedFiles(); updateExcludeStatus(); updateRedStatus();
+}
+// Satu nomor aju hanya dipakai satu kali (file/record pertama menang), supaya
+// dokumen yang sama dari file berbeda tidak terhitung dua kali. Dihitung ulang
+// dari data asli setiap file, sehingga menghapus satu file tidak menghilangkan
+// dokumen yang sebelumnya dilewati.
+function rebuildRecords() {
+  const seen = new Set();
+  for (const item of uploadedFiles.values()) {
+    item.records = item.allRecords.filter(r => {
+      if (seen.has(r.aju)) return false;
+      seen.add(r.aju);
+      return true;
+    });
+  }
+  records = [...uploadedFiles.values()].flatMap(x => x.records);
+}
+// Sidik jari isi file, untuk mengenali file yang sama walau namanya berbeda.
+async function fileHash(buffer) {
+  if (globalThis.crypto?.subtle) {
+    try {
+      const digest = await globalThis.crypto.subtle.digest("SHA-256", buffer);
+      return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, "0")).join("");
+    } catch (e) { /* lanjut ke cadangan */ }
+  }
+  const bytes = new Uint8Array(buffer);
+  let h1 = 0x811c9dc5, h2 = 5381;
+  for (let i = 0; i < bytes.length; i++) {
+    h1 = Math.imul(h1 ^ bytes[i], 16777619) >>> 0;
+    h2 = (Math.imul(h2, 33) + bytes[i]) >>> 0;
+  }
+  return `fb-${bytes.length}-${h1}-${h2}`;
 }
 function sumMap(map) {
   return [...map.entries()].filter(([,v])=>v!==0).map(([k,v])=>`${fmtQty(v)} ${k}`).join(" + ") || "-";
@@ -332,7 +410,7 @@ function buildReport() {
 
     const routePurposeGroups = new Map();
     partyDocs.forEach(r => {
-      const route = redNumbers.has(r.recordId) ? "MERAH" : "HIJAU";
+      const route = isRedRecord(r) ? "MERAH" : "HIJAU";
       const groupKey = `${route}\u0000${r.purpose}`;
       if (!routePurposeGroups.has(groupKey)) routePurposeGroups.set(groupKey, {route, purpose:r.purpose, docs:[]});
       routePurposeGroups.get(groupKey).docs.push(r);
@@ -367,6 +445,7 @@ function refreshAll() {
   refreshPartyOptions();
   renderRedList();
   renderExcludeList();
+  updateRedStatus();
   const hasRecords = records.length > 0;
   $("generateBtn").disabled = !hasRecords;
   $("copyBtn").disabled = !hasRecords;
@@ -380,49 +459,63 @@ function setupDocTypes() {
   if (![...$("docType").options].some(o => o.value === previous)) $("docType").selectedIndex = 0;
 }
 $("excelFile").addEventListener("change", async (event) => {
-  const files = [...(event.target.files || [])];
+  const input = event.target;
+  const files = [...(input.files || [])];
   if (!files.length) return;
-  const added = [], errors = [];
-  for (const file of files) {
-    const fileId = `file-${++fileSequence}`;
-    $("fileStatus").textContent = `Membaca ${file.name}...`;
-    try {
-      const data = await file.arrayBuffer();
-      const wb = XLSX.read(data,{type:"array",cellDates:true});
-      const parsed = parseWorkbook(wb);
-      const tagged = parsed.map((r,index)=>({...r, recordId:`${fileId}-${index}-${r.aju}`, sourceId:fileId, sourceName:file.name}));
-      uploadedFiles.set(fileId, {name:file.name, records:tagged});
-      added.push(`${file.name} (${tagged.length} dokumen)`);
-    } catch (err) {
-      errors.push(`${file.name}: ${err.message}`);
-      console.error(err);
+  input.disabled = true; // cegah pemilihan ganda selagi file diproses
+  const added = [], skipped = [], errors = [];
+  try {
+    for (const file of files) {
+      $("fileStatus").textContent = `Membaca ${file.name}...`;
+      try {
+        if (!/\.(xlsx|xls|xlsm)$/i.test(file.name)) throw new Error("format file tidak didukung (gunakan .xlsx, .xls, atau .xlsm)");
+        const data = await file.arrayBuffer();
+        const hash = await fileHash(data);
+        const same = [...uploadedFiles.values()].find(x => x.hash === hash);
+        if (same) { skipped.push(`${file.name} (isi sama dengan ${same.name}, tidak diproses ulang)`); continue; }
+        const wb = XLSX.read(data,{type:"array",cellDates:true});
+        const parsed = parseWorkbook(wb);
+        const fileId = `file-${++fileSequence}`;
+        const tagged = parsed.map((r,index)=>({...r, recordId:`${fileId}-${index}-${r.aju}`, sourceId:fileId, sourceName:file.name}));
+        uploadedFiles.set(fileId, {name:file.name, hash, allRecords:tagged, records:[]});
+        rebuildRecords();
+        const item = uploadedFiles.get(fileId);
+        const dupCount = tagged.length - item.records.length;
+        added.push(`${file.name} (${item.records.length} dokumen${dupCount ? `; ${dupCount} dilewati karena nomor aju sudah ada` : ""})`);
+      } catch (err) {
+        errors.push(`${file.name}: ${err?.message || String(err)}`);
+        console.error(err);
+      }
     }
+  } finally {
+    input.disabled = false;
   }
-  records = [...uploadedFiles.values()].flatMap(x => x.records);
   if (records.length) {
     setupDocTypes();
     $("docType").disabled = false; $("partyMode").disabled = false; $("partyName").disabled = false;
     if (!$("movementDate").value) $("movementDate").value = dateInputToday();
     $("dateLabel").firstChild.textContent = `${headerDateLabel($("docType").value)} `;
-    refreshAll(); renderUploadedFiles();
+    refreshAll();
   }
+  renderUploadedFiles();
   const summary = [];
-  if (added.length) summary.push(`Berhasil menambahkan: ${added.join("; ")}.`);
-  if (errors.length) summary.push(`Gagal membaca: ${errors.join("; ")}.`);
+  if (added.length) summary.push(`Berhasil ditambahkan (${added.length} file): ${added.join("; ")}.`);
+  if (skipped.length) summary.push(`Dilewati (${skipped.length} file): ${skipped.join("; ")}.`);
+  if (errors.length) summary.push(`Gagal dibaca (${errors.length} file):`, ...errors.map(e => `\u2022 ${e}`));
   summary.push(`Total saat ini: ${uploadedFiles.size} file, ${records.length} dokumen.`);
-  $("fileStatus").textContent = summary.join(" ");
-  event.target.value = ""; // izinkan memilih ulang nama file yang sama bila diperlukan
+  $("fileStatus").textContent = summary.join("\n");
+  input.value = ""; // izinkan memilih ulang nama file yang sama bila diperlukan
 });
 $("clearFilesBtn").addEventListener("click",()=>{
   uploadedFiles.clear(); records=[]; redNumbers.clear(); excludedNumbers.clear();
-  $("excludeManual").value=""; $("docType").disabled=true; $("partyMode").disabled=true; $("partyName").disabled=true;
+  $("excludeManual").value=""; $("redManual").value=""; $("docType").disabled=true; $("partyMode").disabled=true; $("partyName").disabled=true;
   $("generateBtn").disabled=true; $("copyBtn").disabled=true;
   $("docType").innerHTML='<option value="">Unggah Excel terlebih dahulu</option>';
   $("partyName").innerHTML='<option value="__ALL__">Semua pihak</option>';
   $("redList").className="red-list empty"; $("redList").textContent="Unggah Excel untuk menampilkan daftar dokumen.";
   $("excludeList").className="exclude-list empty"; $("excludeList").textContent="Unggah Excel untuk menampilkan nomor daftar.";
   $("output").value=""; $("fileStatus").textContent="Semua file telah dihapus.";
-  renderUploadedFiles(); updateExcludeStatus();
+  renderUploadedFiles(); updateExcludeStatus(); updateRedStatus();
 });
 $("docType").addEventListener("change",()=>{
   $("dateLabel").firstChild.textContent = `${headerDateLabel($("docType").value)} `;
@@ -434,6 +527,7 @@ $("goodsType").addEventListener("input",()=>{if(records.length)$("output").value
 $("movementDate").addEventListener("change",()=>{if(records.length)$("output").value=buildReport();});
 $("redSearch").addEventListener("input",renderRedList);
 $("excludeSearch").addEventListener("input",renderExcludeList);
+$("redManual").addEventListener("input",()=>{updateRedStatus(); if(records.length){renderRedList(); $("output").value=buildReport();}});
 $("excludeManual").addEventListener("input",()=>{updateExcludeStatus(); if(records.length)$("output").value=buildReport();});
 $("generateBtn").addEventListener("click",()=>{$("output").value=buildReport();$("outputStatus").textContent="Laporan diperbarui. Periksa isi sebelum dikirim.";});
 $("copyBtn").addEventListener("click",async()=>{
@@ -442,3 +536,4 @@ $("copyBtn").addEventListener("click",async()=>{
 });
 $("movementDate").value = dateInputToday();
 updateExcludeStatus();
+updateRedStatus();

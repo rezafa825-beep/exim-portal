@@ -12,3 +12,4 @@ input[type=file]{padding:10px}.grid{display:grid;grid-template-columns:repeat(2,
 textarea{resize:vertical;line-height:1.55;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;min-height:100px}#output{min-height:260px}.uploaded-files{display:grid;gap:8px;margin-top:12px}.uploaded-file{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e2e7ee;border-radius:8px;font-size:13px;overflow-wrap:anywhere}.uploaded-file button{padding:7px 10px;font-size:12px;background:#e9eef6;color:#172033;flex-shrink:0}.empty{color:#697588;font-size:13px;padding:10px 0}
 footer{font-size:12px;color:#7a8494;text-align:center;padding:12px}
 @media(max-width:640px){.grid{grid-template-columns:1fr}.wide{grid-column:auto}.section-title{flex-direction:column}.section-title input{max-width:none}.panel{padding:17px}.uploaded-file{align-items:flex-start}}
+#fileStatus{white-space:pre-line}

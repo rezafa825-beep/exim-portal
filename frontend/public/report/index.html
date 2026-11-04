@@ -16,13 +16,13 @@
     </header>
     <section class="panel">
       <h2>1. Unggah file Excel CEISA</h2>
-      <label class="file-label" for="excelFile">Pilih file .xlsx atau .xls untuk ditambahkan</label>
-      <input id="excelFile" type="file" accept=".xlsx,.xls,.xlsm">
+      <label class="file-label" for="excelFile">Pilih satu atau beberapa file .xlsx, .xls, atau .xlsm sekaligus</label>
+      <input id="excelFile" type="file" accept=".xlsx,.xls,.xlsm" multiple>
       <div class="file-actions">
         <button id="clearFilesBtn" type="button" class="secondary" disabled>Hapus Semua File</button>
       </div>
       <div id="uploadedFiles" class="uploaded-files empty">Belum ada file Excel yang ditambahkan.</div>
-      <p id="fileStatus" class="hint">Pilih satu file, lalu pilih file berikutnya untuk menambahkannya. File diproses di browser ini; jangan unggah file Excel perusahaan ke repository GitHub.</p>
+      <p id="fileStatus" class="hint">Pilih banyak file sekaligus (tahan Ctrl atau Shift saat memilih). Anda juga bisa menambah file lagi kapan saja; file dengan isi yang sama dilewati otomatis. File diproses di browser ini; jangan unggah file Excel perusahaan ke repository GitHub.</p>
     </section>
     <section class="panel">
       <h2>2. Filter laporan</h2>
@@ -57,11 +57,14 @@
       <div class="section-title">
         <div>
           <h2>3. Pengaturan jalur</h2>
-          <p class="hint">Semua dokumen HIJAU secara default. Centang nomor pendaftaran yang harus menjadi MERAH.</p>
+          <p class="hint">Semua dokumen HIJAU secara default. Centang nomor pendaftaran yang harus menjadi MERAH, atau ketik banyak nomor daftar pada kolom di bawah daftar.</p>
         </div>
         <input id="redSearch" type="search" placeholder="Cari nomor / nama pihak" aria-label="Cari nomor atau nama pihak">
       </div>
       <div id="redList" class="red-list empty">Unggah Excel untuk menampilkan daftar dokumen.</div>
+      <label for="redManual">Nomor daftar jalur MERAH secara manual</label>
+      <textarea id="redManual" rows="3" placeholder="Masukkan nomor daftar, pisahkan dengan koma, titik koma, atau baris baru. Contoh: 024864, 024875"></textarea>
+      <p id="redStatus" class="hint" aria-live="polite">Belum ada nomor daftar jalur merah manual.</p>
     </section>
     <section class="panel">
       <h2>4. Pengecualian nomor daftar</h2>
