@@ -1,6 +1,7 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import './style.css';
+import RawMaterial from './modules/raw-material/RawMaterial';
 import {validateFiles} from './core/validate';
 import {getCustomers,upsertCustomer} from './core/customers';
 import {addHistory,listHistory,getHistory,deleteHistory,deleteHistoryOlderThanDays,clearHistory} from './storage/history';
@@ -14,6 +15,8 @@ function Dashboard({open}){
     <section className="home-cards">
       <button className="home-card" onClick={()=>open('validation')}><span className="home-icon">✓</span><h2>EXIM Validation</h2><p>Cross-check Invoice, Packing List, dan Draft EXIM / CEISA secara otomatis, lengkap dengan History dan Customer Master.</p><span className="home-go">Buka EXIM Validation →</span></button>
       <button className="home-card" onClick={()=>open('report')}><span className="home-icon">💬</span><h2>WhatsApp Report</h2><p>Buat laporan format WhatsApp dari satu atau beberapa file Excel, dengan pengaturan jalur dan pengecualian nomor daftar.</p><span className="home-go">Buka WhatsApp Report →</span></button>
+      <button className="home-card" onClick={()=>open('raw-material')}><span className="home-icon">▤</span><h2>Pengambilan Data Bahan Baku</h2><p>Ambil data barang CEISA dan bentuk output BAHANBAKU serta BAHANBAKUTARIF.</p><span className="home-go">Buka Pengambilan Data Bahan Baku →</span></button>
+      <div className="home-card home-card-disabled"><span className="home-icon">◷</span><h2>Monitoring Subkontrak</h2><p>Integrasi akan dikerjakan pada tahap berikutnya.</p><span className="home-go">Segera hadir</span></div>
     </section>
     <footer className="home-foot">REZA SYSTEM · File Excel diproses langsung di browser Anda</footer>
   </main>
@@ -23,32 +26,39 @@ function App(){
   const [page,setPage]=useState('new');
   const [module,setModule]=useState('home');
   const [reportOpened,setReportOpened]=useState(false);
+  const [sidebarOpen,setSidebarOpen]=useState(true);
   const [result,setResult]=useState(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const go=p=>{setPage(p);setError('');if(p!=='new')setResult(null)};
   const openModule=m=>{if(m==='report')setReportOpened(true);setModule(m)};
-  return <div className="portal-root">
-    <header className="portal-bar">
-      <button type="button" className="portal-brand" onClick={()=>openModule('home')} aria-label="REZA SYSTEM - kembali ke Dashboard"><span className="portal-mark">RS</span><span><b>REZA SYSTEM</b><small>INTEGRATED EXIM MANAGEMENT</small></span></button>
-      <nav className="portal-menu">
-        <button className={module==='home'?'selected':''} onClick={()=>openModule('home')}>⌂ Dashboard</button>
-        <button className={module==='validation'?'selected':''} onClick={()=>openModule('validation')}>EXIM Validation</button>
-        <button className={module==='report'?'selected':''} onClick={()=>openModule('report')}>WhatsApp Report</button>
+  return <div className={'portal-root'+(sidebarOpen?' sidebar-expanded':' sidebar-collapsed')}>
+    <aside className="portal-sidebar">
+      <button className="portal-sidebar-brand" onClick={()=>setSidebarOpen(v=>!v)} title="Tampilkan / sembunyikan menu"><span className="portal-mark">RS</span><span className="portal-sidebar-name"><b>REZA SYSTEM</b><small>INTEGRATED EXIM MANAGEMENT</small></span></button>
+      <nav className="portal-side-menu">
+        <button className={module==='home'?'selected':''} onClick={()=>openModule('home')}><span>⌂</span><b>Dashboard</b></button>
+        <button className={module==='validation'?'selected':''} onClick={()=>openModule('validation')}><span>✓</span><b>EXIM Validation</b></button>
+        <button className={module==='report'?'selected':''} onClick={()=>openModule('report')}><span>▤</span><b>WhatsApp Report</b></button>
+        <button className={module==='raw-material'?'selected':''} onClick={()=>openModule('raw-material')}><span>▧</span><b>Pengambilan Data Bahan Baku</b></button>
+        <button className="menu-disabled" disabled title="Akan diintegrasikan pada tahap berikutnya"><span>◷</span><b>Monitoring Subkontrak</b></button>
       </nav>
-    </header>
-    {module==='home'&&<Dashboard open={openModule}/>}
-    {reportOpened&&<main className={'portal-report'+(module==='report'?'':' is-hidden')}><iframe title="WhatsApp Report Generator" src="./report/index.html"/></main>}
-    <div className={'shell'+(module==='validation'?'':' is-hidden')}>
-      <aside><div className="brand">EXIM<span>VALIDATION</span></div><div className="brand-sub">DOCUMENT CONTROL</div>
-        <nav>{[['new','＋','New Validation'],['history','◷','History'],['customers','⚙','Customer Master']].map(([p,i,t])=><button key={p} className={page===p?'active':''} onClick={()=>go(p)}><span>{i}</span>{t}</button>)}</nav>
-        <div className="side-note"><b>100% CLIENT-SIDE</b><br/>File stays in your browser<br/><small>GitHub Pages ready</small></div>
-      </aside>
-      <main><header className="top"><div><div className="eyebrow">EXIM DOCUMENT CONTROL</div><h1>{page==='new'?'New Validation':page==='history'?'Validation History':'Customer Master'}</h1></div><div className="pill"><i/> WEB · LOCAL PROCESSING</div></header>
-        {page==='new'&&<NewValidation result={result} setResult={setResult} busy={busy} setBusy={setBusy} error={error} setError={setError}/>} 
-        {page==='history'&&<History onOpen={x=>{setResult(x);setPage('new')}}/>}
-        {page==='customers'&&<Customers/>}
-      </main>
+      <div className="portal-sidebar-foot">Setiap kesulitan pasti ada kemudahan</div>
+    </aside>
+    <div className="portal-stage">
+      {module==='home'&&<Dashboard open={openModule}/>}
+      {reportOpened&&<main className={'portal-report'+(module==='report'?'':' is-hidden')}><iframe title="WhatsApp Report Generator" src="./report/index.html"/></main>}
+      <div className={'shell'+(module==='validation'?'':' is-hidden')}>
+        <aside><div className="brand">EXIM<span>VALIDATION</span></div><div className="brand-sub">DOCUMENT CONTROL</div>
+          <nav>{[['new','＋','New Validation'],['history','◷','History'],['customers','⚙','Customer Master']].map(([p,i,t])=><button key={p} className={page===p?'active':''} onClick={()=>go(p)}><span>{i}</span>{t}</button>)}</nav>
+          <div className="side-note"><b>100% CLIENT-SIDE</b><br/>File stays in your browser<br/><small>GitHub Pages ready</small></div>
+        </aside>
+        <main><header className="top"><div><div className="eyebrow">EXIM DOCUMENT CONTROL</div><h1>{page==='new'?'New Validation':page==='history'?'Validation History':'Customer Master'}</h1></div><div className="pill"><i/> WEB · LOCAL PROCESSING</div></header>
+          {page==='new'&&<NewValidation result={result} setResult={setResult} busy={busy} setBusy={setBusy} error={error} setError={setError}/>} 
+          {page==='history'&&<History onOpen={x=>{setResult(x);setPage('new')}}/>}
+          {page==='customers'&&<Customers/>}
+        </main>
+      </div>
+      {module==='raw-material'&&<RawMaterial/>}
     </div>
   </div>
 }
