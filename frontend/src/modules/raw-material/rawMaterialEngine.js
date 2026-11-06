@@ -67,7 +67,11 @@ export function buildBahanBakuRows(doc, items) {
       'URAIAN': item.uraian, 'MEREK': item.merek, 'TIPE': item.tipe, 'UKURAN': item.ukuran, 'SPESIFIKASI LAIN': item.spesifikasi,
       'KODE SATUAN': item.kodeSatuan, 'JUMLAH SATUAN': num(item.quantity), 'KODE DOKUMEN ASAL': doc.docCode,
       'KODE KANTOR ASAL': doc.kodeKantor, 'NOMOR DAFTAR ASAL': doc.nomorDaftar, 'TANGGAL DAFTAR ASAL': doc.tanggalDaftar,
-      'NOMOR AJU ASAL': doc.aju, 'SERI BARANG ASAL': item.sourceSeries ?? item.series, 'CIF': cif, 'CIF RUPIAH': cifRupiah,
+      'NOMOR AJU ASAL': doc.aju, 'SERI BARANG ASAL': item.sourceSeries ?? item.series,
+      'VOLUME': doc.docCode === '40'
+        ? (num(item.originalQty) ? num(item.sourceHargaPenyerahan) / num(item.originalQty) : 0)
+        : num(item.cifUnit),
+      'CIF': cif, 'CIF RUPIAH': cifRupiah,
       'NDPBM': doc.ndpbm, 'HARGA PENYERAHAN': doc.docCode === '40' ? item.sourceHargaPenyerahan : cifRupiah
     });
     return row;
