@@ -13,7 +13,8 @@ export function parseInvoice(fileData, mapping, sheetName, currencyPreference = 
     return { sheet, h, score: h?.score || 0 };
   }).sort((a,b) => b.score-a.score);
   const selectedSheet = sheetName ? getSheet(fileData, sheetName) : candidates[0]?.sheet;
-  const h = sheetName ? findHeader(selectedSheet?.rows || [], ['ITEM NAME','QTY','AMOUNT','SKU']) : candidates[0]?.h;
+  const invoiceRequired = Object.values(mapping || {}).map(v => v.primary).filter(Boolean).concat(['ITEM NAME','QTY','AMOUNT']);
+  const h = sheetName ? findHeader(selectedSheet?.rows || [], invoiceRequired) : candidates[0]?.h;
   if (!selectedSheet || !h) throw new Error('Header Invoice tidak ditemukan.');
   const sheet=selectedSheet, headers=h.headers;
   const cCode=resolveColumn(headers,mapping,'ITEM_CODE'), cName=resolveColumn(headers,mapping,'ITEM_NAME'), cSku=headers['SKU'] ?? headers['PRODUCT SKU'] ?? null, cQty=resolveColumn(headers,mapping,'QUANTITY');
@@ -64,7 +65,7 @@ export function parseInvoice(fileData, mapping, sheetName, currencyPreference = 
 export function parsePackingList(fileData, mapping, rowRule, sheetName) {
   const required = Object.values(mapping||{}).map(v=>v.primary).concat(['ITEM NAME','QTY','GW','NW','KEMASAN']);
   const candidates=fileData.sheets.map(sheet=>{const h=findHeaderWithContinuation(sheet.rows,required,40,2);const bonus=h?['KEMASAN','GW','NW','ITEM NAME','QTY'].filter(x=>h.headers[x]!==undefined).length*5:0;return {sheet,h,score:(h?.score||0)+bonus};}).sort((a,b)=>b.score-a.score);
-  const chosen=sheetName?{sheet:getSheet(fileData,sheetName),h:findHeaderWithContinuation(getSheet(fileData,sheetName)?.rows||[],['ITEM NAME','QTY','GW','NW','KEMASAN'],40,2)}:candidates[0];
+  const chosen=sheetName?{sheet:getSheet(fileData,sheetName),h:findHeaderWithContinuation(getSheet(fileData,sheetName)?.rows||[],required,40,2)}:candidates[0];
   if(!chosen?.sheet||!chosen?.h) throw new Error('Header Packing List tidak ditemukan.');
   const {sheet,h}=chosen, headers={...h.headers};
   // Beberapa format PL menempatkan sub-header GW/NW dan label jenis kemasan pada bagian bawah tabel.
