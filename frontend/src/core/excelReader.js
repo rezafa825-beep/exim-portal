@@ -15,6 +15,13 @@ export function cleanText(value) {
   return String(value).replace(/\s+/g, ' ').trim();
 }
 
+// Kode barang di Excel kadang tertulis dengan baris baru setelah tanda hubung (mis. "644475-" lalu "094").
+// Baris baru itu digabung kembali tanpa spasi agar kode sama dengan Invoice/Draft. Kode lain tidak berubah.
+export function cleanCode(value) {
+  if (value === null || value === undefined) return '';
+  return cleanText(String(value).replace(/-[ \t]*[\r\n]+[ \t]*/g, '-'));
+}
+
 export function normCompany(value) {
   return cleanText(value).toUpperCase().replace(/^PT\.?\s*/, '').trim();
 }
@@ -76,7 +83,10 @@ export function isHeaderLikeRow(row, headers = {}) {
   if (!values.length) return true;
   const headerSet = new Set(Object.keys(headers || {}).map(v => cleanText(v).toUpperCase()));
   const generic = new Set(['NO','NO.','ITEM NAME','MATERIAL CODE','ITEM CODE','PRODUCT CODE','SKU','STYLE','QTY','QUANTITY','UNIT','KEMASAN','GW','NW','GROSS WEIGHT','NET WEIGHT','WEIGHT','AMOUNT','AMOUNT (IDR)','SURAT JALAN']);
-  const hits = values.filter(v => headerSet.has(v) || generic.has(v)).length;
+  // Angka murni (mis. jumlah per ukuran "4") tidak dihitung sebagai judul kolom,
+  // supaya baris data tidak salah dibuang saat header memiliki baris ukuran (3, 4, 5, ...).
+  const isNumeric = v => /^-?\d+(?:[.,]\d+)?$/.test(v);
+  const hits = values.filter(v => !isNumeric(v) && (headerSet.has(v) || generic.has(v))).length;
   return hits >= 2;
 }
 
@@ -145,12 +155,22 @@ export function extractParties(rows) {
     for (let c = 0; c < (rows[r] || []).length; c++) {
       const v = cleanText(rows[r][c]).toUpperCase();
       if (labels.some(label => v.startsWith(label) && !v.startsWith(`${label} ADDRESS`))) {
-        const raw = cleanText(rows[r][c]);
-        const after = raw.replace(/^(CONSIGNEE|SHIP TO)\s*[:#-]?\s*/i, '').trim();
-        if (after) receiver = after.split('\n')[0];
+        // Ambil dari teks asli (bukan cleanText) agar baris baru dalam satu sel tetap terbaca sebagai baris terpisah.
+        const lines = String(rows[r][c] ?? '').split(/\r?\n/).map(cleanText).filter(Boolean);
+        const after = (lines[0] || '').replace(/^(CONSIGNEE|SHIP TO)\s*[:#-]?\s*/i, '').trim();
+        if (after) receiver = after;
+        // Nama di baris berikutnya dalam sel yang sama (label di baris pertama, nama di baris kedua).
+        if (!receiver && lines[1]) receiver = lines[1];
         if (!receiver) {
           for (let cc = c + 1; cc < Math.min((rows[r] || []).length, c + 4); cc++) {
             if (cleanText(rows[r][cc])) { receiver = cleanText(rows[r][cc]).split('\n')[0]; break; }
+          }
+        }
+        // Label berdiri sendiri (mis. sel gabungan), nama ada di baris bawahnya pada kolom yang sama.
+        if (!receiver) {
+          for (let rr = r + 1; rr <= Math.min(rows.length - 1, r + 2); rr++) {
+            const below = String((rows[rr] || [])[c] ?? '').split(/\r?\n/).map(cleanText).filter(Boolean)[0];
+            if (below) { receiver = below; break; }
           }
         }
         if (receiver) break outer;
