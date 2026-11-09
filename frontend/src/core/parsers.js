@@ -35,7 +35,9 @@ export function parseInvoice(fileData, mapping, sheetName, currencyPreference = 
     const row=sheet.rows[r]||[]; const name=cleanText(cName!==null?row[cName]:'');
     if (!name || rowIsAggregation(name,'TOTAL;SUBTOTAL;GRAND TOTAL') || isHeaderLikeRow(row,headers)) continue;
     const qty=toNumber(cQty!==null?row[cQty]:null);
-    const rawUsd=toNumber(cAmtUsd!==null?row[cAmtUsd]:null), rawIdr=toNumber(cAmtIdr!==null?row[cAmtIdr]:null);
+    let rawUsd=toNumber(cAmtUsd!==null?row[cAmtUsd]:null); const rawIdr=toNumber(cAmtIdr!==null?row[cAmtIdr]:null);
+    // Format Invoice PT. Chinli Plastic Technology Indonesia: kolom K berisi label USD, nominal berada di kolom L.
+    if(rawUsd===null&&cAmtUsd!==null&&String(row[cAmtUsd]??'').trim().toUpperCase()==='USD') rawUsd=toNumber(row[cAmtUsd+1]);
     const genericAmountOnly=headers['AMOUNT']!==undefined&&headers['AMOUNT (USD)']===undefined&&headers['USD AMOUNT']===undefined&&cAmtIdr===null;
     const usd=preference==='IDR'&&genericAmountOnly?null:rawUsd;
     const idr=preference==='IDR'&&genericAmountOnly?rawUsd:(preference==='USD'&&genericAmountOnly?null:rawIdr);
@@ -65,6 +67,9 @@ export function parsePackingList(fileData, mapping, rowRule, sheetName) {
   const chosen=sheetName?{sheet:getSheet(fileData,sheetName),h:findHeaderWithContinuation(getSheet(fileData,sheetName)?.rows||[],['ITEM NAME','QTY','GW','NW','KEMASAN'],40,2)}:candidates[0];
   if(!chosen?.sheet||!chosen?.h) throw new Error('Header Packing List tidak ditemukan.');
   const {sheet,h}=chosen, headers={...h.headers};
+  // Beberapa format PL menempatkan sub-header GW/NW dan label jenis kemasan pada bagian bawah tabel.
+  // Ambil posisi header semantik tersebut dari seluruh sheet tanpa mengubah kolom barang lainnya.
+  for(const row of sheet.rows){(row||[]).forEach((value,col)=>{const key=cleanText(value).toUpperCase();if(['GW','GROSS WT','GROSS WEIGHT','NW','NET WT','NET WEIGHT'].includes(key)&&headers[key]===undefined)headers[key]=col;});}
   const cCode=resolveColumn(headers,mapping,'ITEM_CODE'),cName=resolveColumn(headers,mapping,'ITEM_NAME'),cQty=resolveColumn(headers,mapping,'QUANTITY'),cGw=resolveColumn(headers,mapping,'GROSS_WEIGHT'),cNw=resolveColumn(headers,mapping,'NET_WEIGHT'),cPkg=resolveColumn(headers,mapping,'PACKAGE'),cPl=resolveColumn(headers,mapping,'PACKING_LIST_NO');
   const items=[];let totalGw=0,totalNw=0,plno='',pkgType='',pkgQty=0;const labels=rowRule?.aggregation_labels||'TOTAL;SUBTOTAL;GRAND TOTAL';
   for(let r=h.row+1;r<sheet.rows.length;r++) {
@@ -78,11 +83,14 @@ export function parsePackingList(fileData, mapping, rowRule, sheetName) {
   }
   // The package label often appears in the continuation header (e.g. POLYBAG), not in the item rows.
   if(cPkg!==null){
-    for(let rr=h.row+1;rr<=Math.min(sheet.rows.length-1,h.row+3);rr++){const raw=cleanText((sheet.rows[rr]||[])[cPkg]);if(raw&&toNumber(raw)===null&&!/^(KEMASAN|PACKAGE|TOTAL|GRAND TOTAL)$/i.test(raw)){pkgType=raw;break;}}
-    // Prefer an explicit Grand Total/Total row. Otherwise sum only numeric item rows, excluding subtotals.
-    for(let rr=sheet.rows.length-1;rr>h.row;rr--){const row=sheet.rows[rr]||[];const rowText=row.map(cleanText).join(' ').toUpperCase();if(/GRAND TOTAL/.test(rowText)||/^TOTAL\b/.test(cleanText(row.find(v=>/^TOTAL$/i.test(cleanText(v)))))){const q=toNumber(row[cPkg]);if(q!==null){pkgQty=Math.trunc(q);break;}}}
+    // Jenis kemasan dapat dicantumkan pada sub-header setelah baris TOTAL.
+    for(let rr=h.row+1;rr<sheet.rows.length;rr++){const raw=cleanText((sheet.rows[rr]||[])[cPkg]);if(raw&&toNumber(raw)===null&&!/^(KEMASAN|PACKAGE|TOTAL|GRAND TOTAL)$/i.test(raw)){pkgType=raw;break;}}
+    // Prefer baris TOTAL/GRAND TOTAL yang eksplisit.
+    for(let rr=sheet.rows.length-1;rr>h.row;rr--){const row=sheet.rows[rr]||[];const rowText=row.map(cleanText).join(' ').toUpperCase();if(/GRAND TOTAL/.test(rowText)||row.some(v=>/^TOTAL$/i.test(cleanText(v)))){const q=toNumber(row[cPkg]);if(q!==null){pkgQty=Math.trunc(q);break;}}}
     if(!pkgQty){for(let rr=h.row+1;rr<sheet.rows.length;rr++){const row=sheet.rows[rr]||[];const name=cleanText(cName!==null?row[cName]:'');if(!name||rowIsAggregation(name,labels)||isHeaderLikeRow(row,headers))continue;const q=toNumber(row[cPkg]);if(q!==null)pkgQty+=Math.trunc(q);}}
   }
+  // Ambil total GW/NW eksplisit bila PL hanya menyediakan berat pada baris TOTAL.
+  for(let rr=h.row+1;rr<sheet.rows.length;rr++){const row=sheet.rows[rr]||[];if(row.some(v=>/^TOTAL$/i.test(cleanText(v)))){const gw=toNumber(cGw!==null?row[cGw]:null),nw=toNumber(cNw!==null?row[cNw]:null);if(gw!==null)totalGw=gw;if(nw!==null)totalNw=nw;break;}}
   if(!plno)plno=findInlineValue(sheet.rows,['PACKING LIST NO','PL NO','INVOICE NO']);
   return {document_type:'packing_list',packing_list_no:plno,packing_list_date:findInlineDate(sheet.rows),items,total_gw:totalGw,total_nw:totalNw,package_type:pkgType,package_quantity:pkgQty,...extractParties(sheet.rows)};
 }

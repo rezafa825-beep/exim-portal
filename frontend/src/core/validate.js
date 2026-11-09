@@ -31,9 +31,11 @@ export async function validateFiles(files,currencyPreference='AUTO'){
   if(!draftRec) throw new Error('Draft EXIM tidak terdeteksi.');
   const draft=parseDraft(draftRec.file); const customer=findCustomer(draft.company_receiver);
   if(!customer) throw new Error(`Customer belum ada di Customer Master: ${draft.company_receiver||'tidak terbaca'}`);
-  const sel=selectDocuments(docs,customer,draft,currencyPreference); const invRec=sel.invRec, plRec=sel.plRec, sjRec=sel.sjRec;
+  // AUTO mengikuti preferensi mata uang customer jika tersedia; pilihan IDR/USD manual tetap menjadi prioritas.
+  const effectiveCurrency=String(currencyPreference||'AUTO').toUpperCase()==='AUTO'?(customer.default_currency||'AUTO'):String(currencyPreference).toUpperCase();
+  const sel=selectDocuments(docs,customer,draft,effectiveCurrency); const invRec=sel.invRec, plRec=sel.plRec, sjRec=sel.sjRec;
   if(!invRec||!plRec) throw new Error('Invoice dan Packing List wajib tersedia.');
-  const inv=parseInvoice(invRec.file,customer.mappings.invoice,invRec.sheetName,currencyPreference); const pl=parsePackingList(plRec.file,customer.mappings.packing_list,customer.row_rule,plRec.sheetName); const sj=sjRec ? parseSuratJalan(sjRec.file,customer.mappings.surat_jalan||customer.mappings.invoice,sjRec.sheetName) : null; if(sj?.surat_jalan) inv.surat_jalan=sj.surat_jalan;
+  const inv=parseInvoice(invRec.file,customer.mappings.invoice,invRec.sheetName,effectiveCurrency); const pl=parsePackingList(plRec.file,customer.mappings.packing_list,customer.row_rule,plRec.sheetName); const sj=sjRec ? parseSuratJalan(sjRec.file,customer.mappings.surat_jalan||customer.mappings.invoice,sjRec.sheetName) : null; if(sj?.surat_jalan) inv.surat_jalan=sj.surat_jalan;
   const issues=[];if(!inv.invoice_no)issues.push('Invoice Number tidak terbaca');if(!pl.packing_list_no)issues.push('Packing List Number tidak terbaca');if(!inv.items.length)issues.push('Item Invoice tidak terbaca');if(!pl.items.length)issues.push('Item Packing List tidak terbaca');if(issues.length)throw new Error(`Dokumen belum dapat dipetakan dengan yakin: ${issues.join('; ')}. Periksa struktur/header file.`);
-  const result=crosscheck(inv,pl,draft,sj,{currencyPreference,customerName:customer.customer_name}); result.notes=[...(result.notes||[]),...sel.notes];return {session_id:crypto.randomUUID(),customer:customer.customer_name,currency_preference:currencyPreference,invoice:inv,packing_list:pl,surat_jalan:sj,draft,result,detected_documents,created_at:new Date().toISOString()};
+  const result=crosscheck(inv,pl,draft,sj,{currencyPreference:effectiveCurrency,customerName:customer.customer_name}); result.notes=[...(result.notes||[]),...sel.notes];return {session_id:crypto.randomUUID(),customer:customer.customer_name,currency_preference:effectiveCurrency,invoice:inv,packing_list:pl,surat_jalan:sj,draft,result,detected_documents,created_at:new Date().toISOString()};
 }

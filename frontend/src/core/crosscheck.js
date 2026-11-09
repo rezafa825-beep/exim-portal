@@ -96,8 +96,8 @@ export function crosscheck(invoice,pl,draft,sj=null,options={}){
     const invoiceCurrency=a.price?.currency||invoice.total_cif_currency||'USD';
     const ap=pickPrice(a,invoiceCurrency),cp=pickPrice(c,invoiceCurrency);
     const pm=money(ap,cp);
-    const gwm=eq(b.gross_weight,c.gross_weight);
-    const nwm=eq(b.net_weight,c.net_weight);
+    const gwm=b.gross_weight===null||b.gross_weight===undefined?true:eq(b.gross_weight,c.gross_weight);
+    const nwm=b.net_weight===null||b.net_weight===undefined?true:eq(b.net_weight,c.net_weight);
     codeOk&&=cm;
     if (hasPrimaryName) nameOk&&=nm;
     if(isAdonia) skuOk&&=skuMatch;
@@ -107,7 +107,7 @@ export function crosscheck(invoice,pl,draft,sj=null,options={}){
     if(!ca&&cc)notes.push(`Item No. ${i+1}: Item Code Draft tidak ditemukan di Invoice.`);
     if(ca&&!cc)notes.push(`Item No. ${i+1}: Item Code Invoice tidak ditemukan di Draft.`);
     if(ap?.currency&&cp?.currency&&ap.currency!==cp.currency)notes.push(`Item No. ${i+1}: Valuta harga berbeda (${ap.currency} vs ${cp.currency}).`);
-    details.push({sequence:i+1,invoice_code:a.item_code||'',pl_code:b.item_code||'',draft_code:c.item_code||'',invoice_sku:a.item_sku||'',draft_sku:c.item_sku||'',invoice_name:a.item_name||'',pl_name:b.item_name||'',draft_name:c.item_name||'',invoice_quantity:a.quantity,draft_quantity:c.quantity,pl_quantity:b.quantity,invoice_price:ap?.value??null,invoice_currency:ap?.currency||'',draft_price:cp?.value??null,draft_currency:cp?.currency||'',pl_gross_weight:b.gross_weight??null,draft_gross_weight:c.gross_weight??null,pl_net_weight:b.net_weight??null,draft_net_weight:c.net_weight??null,item_code_status:cm?'MATCH':'NOT MATCH',sku_status:isAdonia?(skuMatch?'MATCH':'NOT MATCH'):'INFO',item_code_cell_status:{invoice:ca===cc&&!!ca?'MATCH':'NOT MATCH',pl:(!cb||cb===cc)&&!!cc?'MATCH':'NOT MATCH',draft:cm?'MATCH':'NOT MATCH'},item_name_status:nm?'MATCH':'NOT MATCH',item_name_cell_status:{invoice:na===nc&&!!na&&!!nc?'MATCH':'NOT MATCH',pl:'INFO',draft:nm?'MATCH':'NOT MATCH'},quantity_status:qm?'MATCH':'NOT MATCH',price_status:pm?'MATCH':'NOT MATCH',gw_status:gwm?'MATCH':'NOT MATCH',nw_status:nwm?'MATCH':'NOT MATCH'});
+    details.push({sequence:i+1,invoice_code:a.item_code||'',pl_code:b.item_code||'',draft_code:c.item_code||'',invoice_sku:a.item_sku||'',draft_sku:c.item_sku||'',invoice_name:a.item_name||'',pl_name:b.item_name||'',draft_name:c.item_name||'',invoice_quantity:a.quantity,draft_quantity:c.quantity,pl_quantity:b.quantity,invoice_price:ap?.value??null,invoice_currency:ap?.currency||'',draft_price:cp?.value??null,draft_currency:cp?.currency||'',pl_gross_weight:b.gross_weight??null,draft_gross_weight:c.gross_weight??null,pl_net_weight:b.net_weight??null,draft_net_weight:c.net_weight??null,item_code_status:cm?'MATCH':'NOT MATCH',sku_status:isAdonia?(skuMatch?'MATCH':'NOT MATCH'):'INFO',item_code_cell_status:{invoice:ca===cc&&!!ca?'MATCH':'NOT MATCH',pl:(!cb||cb===cc)&&!!cc?'MATCH':'NOT MATCH',draft:cm?'MATCH':'NOT MATCH'},item_name_status:nm?'MATCH':'NOT MATCH',item_name_cell_status:{invoice:na===nc&&!!na&&!!nc?'MATCH':'NOT MATCH',pl:'INFO',draft:nm?'MATCH':'NOT MATCH'},quantity_status:qm?'MATCH':'NOT MATCH',price_status:pm?'MATCH':'NOT MATCH',gw_status:b.gross_weight===null||b.gross_weight===undefined?'INFO':(gwm?'MATCH':'NOT MATCH'),nw_status:b.net_weight===null||b.net_weight===undefined?'INFO':(nwm?'MATCH':'NOT MATCH')});
   });
   checks.item_code=codeOk?'MATCH':'NOT MATCH'; checks.item_name=nameOk?'MATCH':'NOT MATCH'; if(isAdonia)checks.sku=skuOk?'MATCH':'NOT MATCH'; checks.quantity=qtyOk?'MATCH':'NOT MATCH'; checks.item_price=priceOk?'MATCH':'NOT MATCH'; checks.item_gw=gwOk?'MATCH':'NOT MATCH'; checks.item_nw=nwOk?'MATCH':'NOT MATCH';
   const decisive=['company','invoice_number','packing_list_number','surat_jalan','total_cif','total_gw','total_nw','package','item_code','item_name','quantity','item_price','item_gw','item_nw',...(isAdonia?['sku']:[])];
