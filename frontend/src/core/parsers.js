@@ -47,10 +47,10 @@ export function parseInvoice(fileData, mapping, sheetName, currencyPreference = 
     const priceValue=preference==='AUTO' ? chosenValue : (preference==='IDR'?(idr!==null?idr:(cAmtIdr===null&&headers['AMOUNT']!==undefined?chosenValue:null)):(usd!==null?usd:chosenValue));
     const priceUsd=preference==='USD'&&usd===null?priceValue:usd;
     const priceIdr=preference==='IDR'&&idr===null&&genericAmountOnly?priceValue:idr;
-    // Baris yang hanya berisi teks di kolom Item Name (catatan, mis. "MATERIAL CODE : ...") tanpa kode, qty, maupun harga bukan item.
-    if(!cleanCode(cCode!==null?row[cCode]:'')&&qty===null&&priceValue===null) continue;
+    // Baris tanpa kode barang dan tanpa qty (catatan "MATERIAL CODE : ...", Discount, PPN) bukan item, walaupun kolom harga berisi angka (mis. 0).
+    if(!cleanCode(cCode!==null?row[cCode]:'')&&qty===null) continue;
     items.push({sequence:items.length+1,item_code:cleanCode(cCode!==null?row[cCode]:''),item_sku:cleanText(cSku!==null?row[cSku]:''),item_name:name,quantity:qty,amount:priceValue,price:{value:priceValue,currency:amountCurrency},prices:{USD:priceUsd,IDR:priceIdr},price_usd:priceUsd,price_idr:priceIdr});
-    if (cSj!==null && cleanText(row[cSj])) surat=cleanText(row[cSj]);
+    if (cSj!==null && cleanCode(row[cSj])) surat=cleanCode(row[cSj]);
     if (cInv!==null && cleanText(row[cInv])) inv=cleanText(row[cInv]);
   }
   if (!inv) inv=findInlineValue(sheet.rows,['INVOICE NO','INVOICE NUMBER']);

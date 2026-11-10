@@ -144,8 +144,9 @@ export function extractParties(rows) {
   let sender = '';
   for (const row of rows.slice(0, 8)) {
     for (const cell of row) {
-      const v = cleanText(cell);
-      if (/^(PT\.?|CV\.?|UD\s)/i.test(v)) { sender = v.split('\n')[0].trim(); break; }
+      // Ambil baris pertama dari teks asli (bukan cleanText) agar alamat/telepon di baris berikutnya dalam sel yang sama tidak ikut terbaca.
+      const v = String(cell ?? '').split(/\r?\n/).map(cleanText).find(Boolean) || '';
+      if (/^(PT\.?|CV\.?|UD\s)/i.test(v)) { sender = v; break; }
     }
     if (sender) break;
   }
