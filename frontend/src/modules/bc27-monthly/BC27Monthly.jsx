@@ -51,7 +51,7 @@ export default function BC27Monthly() {
 
   return <main className="bc27-page">
     <div className="bc27-heading">
-      <div><div className="eyebrow">REZA SYSTEM · CEISA DATA PROCESSING</div><h1>BC 2.7 Monthly Report</h1><p>Rekapitulasi barang keluar Kawasan Berikat berdasarkan Kode Barang, Jenis Satuan, dan Kategori Barang.</p></div>
+      <div><div className="eyebrow">REZA SYSTEM · CEISA DATA PROCESSING</div><h1>BC 2.7 Monthly Report</h1><p>Rekapitulasi barang keluar Kawasan Berikat. Adonia menggunakan Spesifikasi Lain sebagai identitas barang; perusahaan lain menggunakan Kode Barang.</p></div>
       <span className="bc27-local">PROSES LOKAL · BROWSER</span>
     </div>
 
@@ -84,7 +84,7 @@ export default function BC27Monthly() {
       </section>
 
       <section className="bc27-card">
-        <div className="bc27-section-head"><div><h2>4. DATABASE dan OUTPUT</h2><p>DATABASE menyimpan rincian per barang per AJU. OUTPUT menjumlahkan transaksi berdasarkan tiga kunci penggabungan.</p></div><span className="bc27-step">04</span></div>
+        <div className="bc27-section-head"><div><h2>4. DATABASE dan OUTPUT</h2><p>DATABASE menyimpan rincian per barang per AJU. OUTPUT menjumlahkan transaksi berdasarkan identitas barang, Jenis Satuan, dan Kategori Barang.</p></div><span className="bc27-step">04</span></div>
         <div className="bc27-tabs"><button className={tab==='database'?'active':''} onClick={()=>setTab('database')}>DATABASE ({result.database.length.toLocaleString('id-ID')})</button><button className={tab==='output'?'active':''} onClick={()=>setTab('output')}>OUTPUT ({result.output.length.toLocaleString('id-ID')})</button></div>
         {previewRows.length===0?<div className="bc27-empty">Tidak ada data untuk periode yang dipilih.</div>:<>
           <div className="bc27-table-wrap"><table className="bc27-table"><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{shownRows.map((row,i)=><tr key={`${tab}-${i}`}>{headers.map(h=><td key={h} className={h==='Uraian Barang'||h==='Entitas Perusahaan Tujuan'?'wide-cell':''}>{h==='Jumlah Satuan'?fmt(row[h]):row[h]??''}</td>)}</tr>)}</tbody></table></div>
@@ -100,9 +100,10 @@ export default function BC27Monthly() {
         <li>Hanya dokumen berkode 27 dengan entitas kode 3 bernama persis <b>CHINLI PLASTIC MATERIALS INDONESIA</b> yang diproses sebagai BC 2.7 Keluar.</li>
         <li>Entitas tujuan dibaca dari kode entitas 8.</li>
         <li>Nomor AJU, nomor daftar, dan tanggal daftar berasal dari HEADER kolom A, CP, dan CQ.</li>
-        <li>Kode barang, HS Code, uraian, satuan, jumlah, dan kategori berasal dari BARANG kolom D, C, E, J, K, dan AW.</li>
+        <li>Kode barang, HS Code, uraian, satuan, jumlah, kategori, dan Spesifikasi Lain berasal dari BARANG kolom D, C, E, J, K, AW, dan I.</li>
         <li>Duplikat Nomor AJU antarfile hanya dihitung satu kali; file pertama yang diproses menjadi sumber data.</li>
-        <li>OUTPUT menggabungkan berdasarkan Kode Barang + Jenis Satuan + Kategori Barang.</li>
+        <li>OUTPUT untuk Adonia menggunakan Spesifikasi Lain (BARANG kolom I); perusahaan lain menggunakan Kode Barang.</li>
+        <li>Penggabungan OUTPUT: identitas barang + Jenis Satuan + Kategori Barang. Identitas barang Adonia adalah Spesifikasi Lain.</li>
       </ul>
       <div className="bc27-category"><b>Master kategori CEISA</b><div>{Object.entries(CATEGORY_MASTER).map(([code,name])=><span key={code}><b>{code}</b> {name}</span>)}</div></div>
     </section>

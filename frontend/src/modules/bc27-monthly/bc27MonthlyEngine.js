@@ -2,10 +2,10 @@ import * as XLSX from 'xlsx';
 
 export const DATABASE_HEADERS = [
   'Nomor AJU', 'Nomor Daftar', 'Tanggal Daftar', 'Entitas Perusahaan Tujuan',
-  'HS Code', 'Kode Barang', 'Uraian Barang', 'Jumlah Satuan', 'Jenis Satuan', 'Kategori Barang'
+  'HS Code', 'Kode Barang', 'Spesifikasi Lain', 'Uraian Barang', 'Jumlah Satuan', 'Jenis Satuan', 'Kategori Barang'
 ];
 export const OUTPUT_HEADERS = [
-  'No', 'Kode Barang', 'Uraian Barang', 'Jumlah Satuan', 'Jenis Satuan', 'Kategori Barang'
+  'No', 'Identitas Barang', 'Uraian Barang', 'Jumlah Satuan', 'Jenis Satuan', 'Kategori Barang'
 ];
 
 export const CATEGORY_MASTER = {
@@ -148,10 +148,12 @@ export async function parseMonthlyBc27Files(files, period) {
           const categoryCode = text(value(item, 48));
           const categoryName = CATEGORY_MASTER[categoryCode] || (categoryCode ? `Kode kategori tidak dikenal (${categoryCode})` : '');
           const kodeBarang = text(value(item, 3));
+          const spesifikasiLain = text(value(item, 8));
           const uraian = text(value(item, 4));
           const unit = text(value(item, 9));
           const qty = numberValue(value(item, 10));
           if (!kodeBarang) notices.push(`${aju} · Baris barang ${i + 2}: Kode Barang kosong.`);
+          if (tujuan.toUpperCase().includes('ADONIA') && !spesifikasiLain) notices.push(`${aju} · Baris barang ${i + 2}: Spesifikasi Lain Adonia kosong.`);
           if (!unit) notices.push(`${aju} · Baris barang ${i + 2}: Jenis Satuan kosong.`);
           if (!categoryCode || !CATEGORY_MASTER[categoryCode]) notices.push(`${aju} · Baris barang ${i + 2}: Kategori barang ${categoryCode || 'kosong'} perlu diperiksa.`);
           database.push({
@@ -161,6 +163,7 @@ export async function parseMonthlyBc27Files(files, period) {
             'Entitas Perusahaan Tujuan': tujuan || 'Tidak ditemukan (kode entitas 8)',
             'HS Code': text(value(item, 2)),
             'Kode Barang': kodeBarang,
+            'Spesifikasi Lain': spesifikasiLain,
             'Uraian Barang': uraian,
             'Jumlah Satuan': qty,
             'Jenis Satuan': unit,
@@ -187,22 +190,33 @@ export async function parseMonthlyBc27Files(files, period) {
 export function buildMonthlyOutput(database) {
   const grouped = new Map();
   for (const row of database) {
-    const code = text(row['Kode Barang']);
+    const isAdonia = text(row['Entitas Perusahaan Tujuan']).toUpperCase().includes('ADONIA');
+    // Adonia memakai Spesifikasi Lain sebagai identitas barang; perusahaan lain memakai Kode Barang.
+    const identity = isAdonia ? text(row['Spesifikasi Lain']) : text(row['Kode Barang']);
     const unit = text(row['Jenis Satuan']);
     const category = text(row['Kategori Barang']);
-    // Kunci sesuai keputusan user: Kode Barang + Jenis Satuan + Kategori.
-    // Baris tanpa kode diberi identitas per transaksi agar tidak tergabung keliru.
-    const key = code ? `${code}\u001f${unit}\u001f${category}` : `NO-CODE\u001f${row['Nomor AJU']}\u001f${grouped.size}`;
-    if (!grouped.has(key)) grouped.set(key, { code, description: text(row['Uraian Barang']), quantity: 0, unit, category, descriptions: new Set() });
+    // Untuk Adonia, spesifikasi wajib menjadi bagian kunci. Baris tanpa identitas tidak digabung.
+    const key = identity
+      ? `${isAdonia ? 'ADONIA' : 'KODE'}\u001f${identity}\u001f${unit}\u001f${category}`
+      : `NO-IDENTITY\u001f${row['Nomor AJU']}\u001f${grouped.size}`;
+    if (!grouped.has(key)) grouped.set(key, {
+      identity,
+      description: text(row['Uraian Barang']),
+      quantity: 0,
+      unit,
+      category,
+      descriptions: new Set(),
+      isAdonia
+    });
     const target = grouped.get(key);
     target.quantity += numberValue(row['Jumlah Satuan']);
     if (text(row['Uraian Barang'])) target.descriptions.add(text(row['Uraian Barang']));
   }
   return [...grouped.values()]
-    .sort((a,b) => a.code.localeCompare(b.code, 'id', { numeric: true }) || a.unit.localeCompare(b.unit) || a.category.localeCompare(b.category))
+    .sort((a,b) => a.identity.localeCompare(b.identity, 'id', { numeric: true }) || a.unit.localeCompare(b.unit) || a.category.localeCompare(b.category))
     .map((row, index) => ({
       'No': index + 1,
-      'Kode Barang': row.code,
+      'Identitas Barang': row.identity,
       'Uraian Barang': row.descriptions.size > 1 ? `${row.description} [PERIKSA: uraian berbeda]` : row.description,
       'Jumlah Satuan': row.quantity,
       'Jenis Satuan': row.unit,
@@ -214,8 +228,8 @@ export function exportMonthlyWorkbook(database, output, period) {
   const wb = XLSX.utils.book_new();
   const dbSheet = XLSX.utils.json_to_sheet(database, { header: DATABASE_HEADERS });
   const outSheet = XLSX.utils.json_to_sheet(output, { header: OUTPUT_HEADERS });
-  dbSheet['!cols'] = [18,14,14,34,14,20,48,16,14,42].map(wch => ({ wch }));
-  outSheet['!cols'] = [8,20,55,18,16,42].map(wch => ({ wch }));
+  dbSheet['!cols'] = [18,14,14,34,14,20,28,48,16,14,42].map(wch => ({ wch }));
+  outSheet['!cols'] = [8,32,55,18,16,42].map(wch => ({ wch }));
   if (dbSheet['!ref']) dbSheet['!autofilter'] = { ref: dbSheet['!ref'] };
   if (outSheet['!ref']) outSheet['!autofilter'] = { ref: outSheet['!ref'] };
   XLSX.utils.book_append_sheet(wb, dbSheet, 'DATABASE');
