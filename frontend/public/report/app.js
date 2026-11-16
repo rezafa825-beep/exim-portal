@@ -144,13 +144,17 @@ function parseWorkbook(wb) {
     const partyEntity = entities.find(e => key(e[2]) === defaultPartyCode);
     const regNo = key(h[93]); // HEADER kolom CP = NOMOR DAFTAR (0-based index 93)
     const regDate = h[94];    // HEADER kolom CQ = TANGGAL DAFTAR (0-based index 94)
-    // Pengecualian BC 2.3: Jenis Tujuan Transaksi diambil dari BARANG kolom AZ
-    // (KODE PERHITUNGAN), bukan HEADER kolom N. Ambil kode pertama yang terisi
-    // pada barang dengan nomor aju yang sama; master BC 2.3 memetakan kode 1 dan 2.
+    // Sumber Jenis Tujuan Transaksi mengikuti field pada HEADER:
+    // BC 2.6.2: kolom M (KODE TUJUAN PEMASUKAN).
+    // Dokumen lainnya: kolom N (KODE TUJUAN PENGIRIMAN).
+    // Pengecualian BC 2.3: BARANG kolom AZ (KODE PERHITUNGAN),
+    // ambil kode pertama yang terisi pada barang dengan nomor aju yang sama.
     const goodsForAju = goodsByAju.get(aju) || [];
     const purposeCode = docCode === "23"
       ? (goodsForAju.find(g => key(g[51]) !== "")?.[51] ?? "")
-      : h[13];
+      : docCode === "262"
+        ? h[12]
+        : h[13];
     const packages = new Map(), seals = [];
     for (const p of (packByAju.get(aju) || [])) {
       const pkgCode = norm(p[2]), qty = Number(p[3] || 0), seal = norm(p[5]);

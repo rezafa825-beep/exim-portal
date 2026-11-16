@@ -21,7 +21,7 @@
 5. Tunggu URL Pages aktif.
 
 ## Catatan versi awal
-- Nomor daftar dibaca dari HEADER kolom CP; tanggal daftar dari kolom CQ; tujuan transaksi dari kolom N.
+- Nomor daftar dibaca dari HEADER kolom CP; tanggal daftar dari kolom CQ; tujuan transaksi BC 2.6.2 dari HEADER kolom M (KODE TUJUAN PEMASUKAN), dokumen lain dari kolom N (KODE TUJUAN PENGIRIMAN), kecuali BC 2.3 dari BARANG kolom AZ (KODE PERHITUNGAN).
 - Kode dokumen 27 dibedakan masuk/keluar memakai ENTITAS kode 3 seperti kesepakatan.
 - Pihak keluar memakai ENTITAS kode 8; pihak masuk memakai kode 9. Mode Customer/Supplier dapat dipilih manual.
 - Semua dokumen default HIJAU; centang nomor daftar untuk mengubahnya menjadi MERAH.
