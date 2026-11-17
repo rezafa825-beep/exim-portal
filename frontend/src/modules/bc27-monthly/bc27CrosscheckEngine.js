@@ -4,7 +4,7 @@ const clean = v => String(v ?? '').replace(/\u00a0/g, ' ').trim();
 const norm = v => clean(v).toUpperCase().replace(/[^A-Z0-9]/g, '');
 const number = v => {
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
-  let value = clean(v).replace(/\\s/g, '');
+  let value = clean(v).replace(/\s/g, '');
   if (!value) return 0;
   if (value.includes(',') && value.includes('.')) {
     value = value.lastIndexOf(',') > value.lastIndexOf('.')
