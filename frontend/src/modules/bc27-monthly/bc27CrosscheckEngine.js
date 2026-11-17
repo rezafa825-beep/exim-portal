@@ -8,7 +8,7 @@ const number = v => {
   if (!value) return 0;
   if (value.includes(',') && value.includes('.')) {
     value = value.lastIndexOf(',') > value.lastIndexOf('.')
-      ? value.replace(/\\./g, '').replace(',', '.')
+      ? value.replace(/\./g, '').replace(',', '.')
       : value.replace(/,/g, '');
   } else if (value.includes(',')) {
     value = value.replace(',', '.');
