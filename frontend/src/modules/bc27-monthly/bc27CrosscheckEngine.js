@@ -86,6 +86,8 @@ export function buildCrosscheck(database,inventoryRows,mappings) {
   return rows.sort((a,b)=>a.status.localeCompare(b.status)||a.customer.localeCompare(b.customer)||a.code.localeCompare(b.code));
 }
 
+export function downloadMappingTemplate() { const wb=XLSX.utils.book_new(); const ws=XLSX.utils.aoa_to_sheet([['CUSTOMER','NO STYLE','ITEM CODE CHINLI'],['PT. Shoetown Ligung Indonesia','CONTOH-KODE-CEISA','CONTOH-KODE-INTERNAL']]); ws['!cols']=[36,28,30].map(wch=>({wch})); XLSX.utils.book_append_sheet(wb,ws,'MAPPING'); XLSX.writeFile(wb,'Template_Mapping_ERP_BC27.xlsx'); }
+
 export function exportCrosscheck(rows,period,inventoryPeriod) {
   const wb=XLSX.utils.book_new(), data=rows.map(r=>({'Status':r.status,'Customer':r.customer,'Kode CEISA / Internal':r.code,'Uraian Barang':r.description,'Kode Internal ERP':(r.internalCodes||[]).join(' + '),'Satuan':r.unit,'Qty CEISA':r.quantity,'Qty IT Inventory':r.inventoryQuantity??'','Selisih (CEISA - IT)':r.difference??'','Catatan':r.note}));
   const ws=XLSX.utils.json_to_sheet(data); ws['!cols']=[20,34,28,48,40,14,18,20,22,72].map(wch=>({wch})); if(ws['!ref'])ws['!autofilter']={ref:ws['!ref']}; XLSX.utils.book_append_sheet(wb,ws,'CROSSCHECK');
