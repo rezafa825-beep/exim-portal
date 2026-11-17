@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { DATABASE_HEADERS, OUTPUT_HEADERS, CATEGORY_MASTER, parseMonthlyBc27Files, exportMonthlyWorkbook } from './bc27MonthlyEngine';
 import { parseErpMappings, parseFinishedGoodsInventory, buildCrosscheck, exportCrosscheck, downloadMappingTemplate } from './bc27CrosscheckEngine';
 
 const monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const fmt = value => Number(value || 0).toLocaleString('id-ID', { maximumFractionDigits: 4 });
+const MASTER_STORAGE_KEY = 'rezasystem_bc27_master_mapping_v1';
 
 export default function BC27Monthly() {
   const now = new Date();
@@ -14,9 +15,10 @@ export default function BC27Monthly() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [erpFiles, setErpFiles] = useState([]);
+  const [erpFile, setErpFile] = useState(null);
   const [inventoryFile, setInventoryFile] = useState(null);
-  const [mappings, setMappings] = useState([]);
+  const [mappings, setMappings] = useState(() => { try { const saved = window.localStorage.getItem(MASTER_STORAGE_KEY); return saved ? JSON.parse(saved) : []; } catch { return []; } });
+  useEffect(() => { try { if (mappings.length) window.localStorage.setItem(MASTER_STORAGE_KEY, JSON.stringify(mappings)); else window.localStorage.removeItem(MASTER_STORAGE_KEY); } catch { /* Storage may be unavailable or full; current session still works. */ } }, [mappings]);
   const [inventory, setInventory] = useState(null);
   const [crosscheck, setCrosscheck] = useState(null);
   const [crossBusy, setCrossBusy] = useState(false);
@@ -53,7 +55,7 @@ export default function BC27Monthly() {
       setResult(null); setError(e.message || 'Gagal memproses Excel CEISA.');
     } finally { setBusy(false); }
   };
-  const reset = () => { setFiles([]); setResult(null); setError(''); setNotice(''); setTab('database'); setErpFiles([]); setInventoryFile(null); setMappings([]); setInventory(null); setCrosscheck(null); setCrossError(''); };
+  const reset = () => { setFiles([]); setResult(null); setError(''); setNotice(''); setTab('database'); setErpFile(null); setInventoryFile(null); setInventory(null); setCrosscheck(null); setCrossError(''); };
   const exportExcel = () => {
     if (!result) return;
     exportMonthlyWorkbook(result.database, result.output, period);
@@ -111,10 +113,11 @@ export default function BC27Monthly() {
       {result&&<section className="bc27-card bc27-crosscheck">
         <div className="bc27-section-head"><div><h2>5. Crosscheck CEISA vs IT Inventory</h2><p>Bagian ini tersedia setelah CEISA berhasil diproses. Hanya kategori 1 · Hasil Produksi yang dibandingkan.</p></div><span className="bc27-step">05</span></div>
         <div className="bc27-cross-flow">
-          <div className="bc27-cross-step"><b>A · Master mapping ERP</b><p>Upload file ERP FINISH PART dan FINISH PART MOLDED. Sistem membaca semua sheet dengan kolom CUSTOMER, NO STYLE, dan ITEM CODE CHINLI. Mapping diterapkan sesuai customer, bukan lintas customer.</p>
-            <label className="bc27-file-input">Pilih file master ERP (.xlsx)<input type="file" accept=".xlsx" multiple onChange={e=>{setErpFiles([...e.target.files]);setCrosscheck(null);setCrossError('')}}/></label>
-            {erpFiles.length>0&&<small>{erpFiles.map(f=>f.name).join(' · ')}</small>}
-            <label className="bc27-mapping-mode">Mode mapping<select value={mappingMode} onChange={e=>setMappingMode(e.target.value)}><option value="replace">Replace · Ganti seluruh master</option><option value="update">Update · Tambahkan/perbarui mapping</option></select></label><button className="bc27-secondary" onClick={downloadMappingTemplate}>DOWNLOAD TEMPLATE MAPPING</button><button className="bc27-secondary" disabled={!erpFiles.length||crossBusy} onClick={async()=>{setCrossBusy(true);setCrossError('');try{if(mappingMode==='replace'&&mappings.length&&!window.confirm('Ganti seluruh master mapping yang sedang aktif?'))return;const m=await parseErpMappings(erpFiles);setMappings(mappingMode==='update'?[...new Map([...mappings,...m].map(x=>[[x.customerKey,x.ceisaKey,x.internalKey].join('|'),x])).values()]:m);setCrosscheck(null)}catch(e){setCrossError(e.message||'Gagal membaca master ERP.')}finally{setCrossBusy(false)}}}>BACA MASTER ERP</button>
+          <div className="bc27-cross-step"><b>A · Master Mapping ERP tunggal</b><p>Gunakan satu file master terbaru dengan kolom CUSTOMER, NO STYLE, dan ITEM CODE CHINLI. Setelah dibaca, mapping disimpan di browser ini sehingga tetap tersedia saat halaman dibuka kembali. Mapping diterapkan sesuai customer, bukan lintas customer.</p>
+            <label className="bc27-file-input">Pilih / ganti Master Mapping ERP (.xlsx)<input type="file" accept=".xlsx" onChange={e=>{setErpFile(e.target.files?.[0]||null);setCrosscheck(null);setCrossError('')}}/></label>
+            {erpFile&&<small>File dipilih: {erpFile.name}</small>}
+            {mappings.length>0&&<small className="bc27-good">Master aktif: {mappings.length.toLocaleString('id-ID')} relasi tersimpan di browser ini.</small>}
+            <label className="bc27-mapping-mode">Mode mapping<select value={mappingMode} onChange={e=>setMappingMode(e.target.value)}><option value="replace">Replace · Ganti seluruh master</option><option value="update">Update · Tambahkan/perbarui mapping</option></select></label><button className="bc27-secondary" onClick={downloadMappingTemplate}>DOWNLOAD TEMPLATE MAPPING</button><button className="bc27-secondary" disabled={!erpFile||crossBusy} onClick={async()=>{setCrossBusy(true);setCrossError('');try{if(mappingMode==='replace'&&mappings.length&&!window.confirm('Ganti seluruh master mapping aktif dengan isi file yang dipilih?'))return;const parsed=await parseErpMappings([erpFile]);const next=mappingMode==='update'?[...new Map([...mappings,...parsed].map(x=>[[x.customerKey,x.ceisaKey,x.internalKey].join('|'),x])).values()]:parsed;setMappings(next);setCrosscheck(null);setCrossError('');setNotice('Master Mapping ERP berhasil '+(mappingMode==='replace'?'diganti':'diperbarui')+' dan disimpan di browser ini.')}catch(e){setCrossError(e.message||'Gagal membaca master ERP.')}finally{setCrossBusy(false)}}}>BACA & SIMPAN MASTER ERP</button>
             <div className="bc27-manual-mapping"><b>Tambah mapping manual</b><div><input value={manualCustomer} onChange={e=>setManualCustomer(e.target.value)} placeholder="Customer (nama entitas CEISA)"/><input value={manualCeisa} onChange={e=>setManualCeisa(e.target.value)} placeholder="Kode CEISA / NO STYLE"/><input value={manualInternal} onChange={e=>setManualInternal(e.target.value)} placeholder="Kode internal Chinli"/></div><button className="bc27-secondary" disabled={!manualCustomer.trim()||!manualCeisa.trim()||!manualInternal.trim()} onClick={()=>{const row={customer:manualCustomer.trim(),customerKey:manualCustomer.trim().toUpperCase().replace(/[^A-Z0-9]/g,''),ceisaCode:manualCeisa.trim(),ceisaKey:manualCeisa.trim().toUpperCase().replace(/[^A-Z0-9]/g,''),internalCode:manualInternal.trim(),internalKey:manualInternal.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')};setMappings(prev=>[...prev.filter(x=>![x.customerKey,x.ceisaKey,x.internalKey].every((v,i)=>v===[row.customerKey,row.ceisaKey,row.internalKey][i])),row]);setManualCustomer('');setManualCeisa('');setManualInternal('');setCrosscheck(null)}}>TAMBAH MAPPING</button></div>
             {mappings.length>0&&<small className="bc27-good">{mappings.length.toLocaleString('id-ID')} relasi mapping terbaca.</small>}
           </div>
