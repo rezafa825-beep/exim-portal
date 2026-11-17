@@ -33,7 +33,7 @@ export async function parseFinishedGoodsInventory(file) {
   if(!file) throw new Error('Pilih file IT Inventory terlebih dahulu.');
   if(!/\.xlsx?$/i.test(file.name)) throw new Error('Format file IT Inventory harus .xls atau .xlsx.');
   const wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});
-  const sheetName=wb.SheetNames.find(n=>norm(n)==='BARANGJADI')||wb.SheetNames[0], rows=rowsOf(wb,sheetName);
+  const sheetName=wb.SheetNames.find(n=>norm(n)==='BARANGJADI'); if(!sheetName) throw new Error(file.name+': sheet BARANG JADI tidak ditemukan.'); const rows=rowsOf(wb,sheetName);
   const hi=findHeader(rows,['KODEBARANG','PENGELUARAN']);
   if(hi<0) throw new Error(file.name+': header KODE BARANG, SAT, dan PENGELUARAN tidak ditemukan.');
   const h=rows[hi].map(norm), col=k=>h.findIndex(v=>v===k||v.includes(k));
@@ -69,7 +69,7 @@ export function buildCrosscheck(database,inventoryRows,mappings) {
     const key=[c.customerKey,c.codeKey].join('|'), internals=[...(mapByCeisa.get(key)?.values()||[])];
     if(!internals.length){rows.push({...c,internalCodes:[],inventoryQuantity:null,difference:null,status:'BELUM ADA MAPPING',note:'Kode CEISA belum ada di master ERP untuk customer ini.'});continue;}
     const ambiguous=internals.some(m=>(mapByInternal.get(m.internalKey||norm(m.internalCode))?.size||0)>1);
-    if(ambiguous){rows.push({...c,internalCodes:internals.map(m=>m.internalCode),inventoryQuantity:null,difference:null,status:'MAPPING AMBIGU',note:'Satu kode internal terhubung ke lebih dari satu customer/kode CEISA pada master ERP. Perlu verifikasi manual.'});continue;}
+    if(ambiguous){internals.forEach(m=>used.add([m.internalKey||norm(m.internalCode),c.unitKey].join('|')));rows.push({...c,internalCodes:internals.map(m=>m.internalCode),inventoryQuantity:null,difference:null,status:'MAPPING AMBIGU',note:'Satu kode internal terhubung ke lebih dari satu customer/kode CEISA pada master ERP. Perlu verifikasi manual.'});continue;}
     const found=internals.map(m=>itMap.get([m.internalKey||norm(m.internalCode),c.unitKey].join('|')));
     const present=found.filter(Boolean); present.forEach(r=>used.add([r.internalKey||norm(r.internalCode),r.unitKey||norm(r.unit)].join('|')));
     const invQty=present.reduce((s,r)=>s+r.quantity,0), missing=internals.filter((m,i)=>!found[i]), diff=c.quantity-invQty;
