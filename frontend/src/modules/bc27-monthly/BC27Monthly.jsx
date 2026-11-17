@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { DATABASE_HEADERS, OUTPUT_HEADERS, CATEGORY_MASTER, parseMonthlyBc27Files, exportMonthlyWorkbook } from './bc27MonthlyEngine';
-import { parseErpMappings, parseFinishedGoodsInventory, buildCrosscheck, exportCrosscheck } from './bc27CrosscheckEngine';
+import { parseErpMappings, parseFinishedGoodsInventory, buildCrosscheck, exportCrosscheck, downloadMappingTemplate } from './bc27CrosscheckEngine';
 
 const monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const fmt = value => Number(value || 0).toLocaleString('id-ID', { maximumFractionDigits: 4 });
@@ -22,6 +22,10 @@ export default function BC27Monthly() {
   const [crossBusy, setCrossBusy] = useState(false);
   const [crossError, setCrossError] = useState('');
   const [crossFilter, setCrossFilter] = useState('ALL');
+  const [mappingMode, setMappingMode] = useState('replace');
+  const [manualCustomer, setManualCustomer] = useState('');
+  const [manualCeisa, setManualCeisa] = useState('');
+  const [manualInternal, setManualInternal] = useState('');
 
   const years = useMemo(() => {
     const current = now.getFullYear();
@@ -110,7 +114,8 @@ export default function BC27Monthly() {
           <div className="bc27-cross-step"><b>A · Master mapping ERP</b><p>Upload file ERP FINISH PART dan FINISH PART MOLDED. Sistem membaca semua sheet dengan kolom CUSTOMER, NO STYLE, dan ITEM CODE CHINLI. Mapping diterapkan sesuai customer, bukan lintas customer.</p>
             <label className="bc27-file-input">Pilih file master ERP (.xlsx)<input type="file" accept=".xlsx" multiple onChange={e=>{setErpFiles([...e.target.files]);setMappings([]);setCrosscheck(null);setCrossError('')}}/></label>
             {erpFiles.length>0&&<small>{erpFiles.map(f=>f.name).join(' · ')}</small>}
-            <button className="bc27-secondary" disabled={!erpFiles.length||crossBusy} onClick={async()=>{setCrossBusy(true);setCrossError('');try{const m=await parseErpMappings(erpFiles);setMappings(m);setCrosscheck(null)}catch(e){setCrossError(e.message||'Gagal membaca master ERP.')}finally{setCrossBusy(false)}}}>BACA MASTER ERP</button>
+            <label className="bc27-mapping-mode">Mode mapping<select value={mappingMode} onChange={e=>setMappingMode(e.target.value)}><option value="replace">Replace · Ganti seluruh master</option><option value="update">Update · Tambahkan/perbarui mapping</option></select></label><button className="bc27-secondary" onClick={downloadMappingTemplate}>DOWNLOAD TEMPLATE MAPPING</button><button className="bc27-secondary" disabled={!erpFiles.length||crossBusy} onClick={async()=>{setCrossBusy(true);setCrossError('');try{const m=await parseErpMappings(erpFiles);setMappings(mappingMode==='update'?[...new Map([...mappings,...m].map(x=>[[x.customerKey,x.ceisaKey,x.internalKey].join('|'),x])).values()]:m);setCrosscheck(null)}catch(e){setCrossError(e.message||'Gagal membaca master ERP.')}finally{setCrossBusy(false)}}}>BACA MASTER ERP</button>
+            <div className="bc27-manual-mapping"><b>Tambah mapping manual</b><div><input value={manualCustomer} onChange={e=>setManualCustomer(e.target.value)} placeholder="Customer (nama entitas CEISA)"/><input value={manualCeisa} onChange={e=>setManualCeisa(e.target.value)} placeholder="Kode CEISA / NO STYLE"/><input value={manualInternal} onChange={e=>setManualInternal(e.target.value)} placeholder="Kode internal Chinli"/></div><button className="bc27-secondary" disabled={!manualCustomer.trim()||!manualCeisa.trim()||!manualInternal.trim()} onClick={()=>{const row={customer:manualCustomer.trim(),customerKey:manualCustomer.trim().toUpperCase().replace(/[^A-Z0-9]/g,''),ceisaCode:manualCeisa.trim(),ceisaKey:manualCeisa.trim().toUpperCase().replace(/[^A-Z0-9]/g,''),internalCode:manualInternal.trim(),internalKey:manualInternal.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')};setMappings(prev=>[...prev.filter(x=>![x.customerKey,x.ceisaKey,x.internalKey].every((v,i)=>v===[row.customerKey,row.ceisaKey,row.internalKey][i])),row]);setManualCustomer('');setManualCeisa('');setManualInternal('');setCrosscheck(null)}}>TAMBAH MAPPING</button></div>
             {mappings.length>0&&<small className="bc27-good">{mappings.length.toLocaleString('id-ID')} relasi mapping terbaca.</small>}
           </div>
           <div className="bc27-cross-step"><b>B · Upload IT Inventory</b><p>Gunakan file mutasi barang jadi. Sistem membaca sheet BARANG JADI, kolom KODE BARANG, SAT, dan PENGELUARAN.</p>
@@ -122,7 +127,7 @@ export default function BC27Monthly() {
         {crossError&&<div className="bc27-error">{crossError}</div>}
         {crosscheck&&<>
           <div className="bc27-cross-meta"><span>Periode CEISA: <b>{monthNames[Number(period.month)-1]} {period.year}</b></span><span>Periode IT Inventory: <b>{inventory?.period||'Tidak terdeteksi'}</b></span><span>Baris hasil: <b>{crosscheck.length.toLocaleString('id-ID')}</b></span></div>
-          {inventory?.period&&<div className="bc27-warning">Pastikan periode IT Inventory ({inventory.period}) sesuai dengan periode laporan CEISA ({monthNames[Number(period.month)-1]} {period.year}).</div>}
+          {inventory?.period&&!inventory.period.includes(period.year+'-'+period.month)&&!inventory.period.includes(period.year+'/'+Number(period.month))&&<div className="bc27-warning">Periode berbeda: IT Inventory ({inventory.period}) perlu diperiksa terhadap periode CEISA ({monthNames[Number(period.month)-1]} {period.year}).</div>}
           <div className="bc27-cross-summary">{['MATCH','NOT MATCH','CEISA ONLY','IT ONLY','BELUM ADA MAPPING','MAPPING AMBIGU'].map(s=><button key={s} className={crossFilter===s?'active':''} onClick={()=>setCrossFilter(crossFilter===s?'ALL':s)}><small>{s}</small><b>{crosscheck.filter(r=>r.status===s).length.toLocaleString('id-ID')}</b></button>)}</div>
           <div className="bc27-cross-filter"><label>Filter status<select value={crossFilter} onChange={e=>setCrossFilter(e.target.value)}><option value="ALL">Semua status</option>{['MATCH','NOT MATCH','CEISA ONLY','IT ONLY','BELUM ADA MAPPING','MAPPING AMBIGU'].map(s=><option key={s}>{s}</option>)}</select></label><small>Selisih = Qty CEISA dikurangi Qty IT Inventory.</small></div>
           <div className="bc27-table-wrap"><table className="bc27-table"><thead><tr><th>Status</th><th>Customer</th><th>Kode CEISA</th><th>Uraian Barang</th><th>Kode Internal ERP</th><th>Satuan</th><th>Qty CEISA</th><th>Qty IT Inventory</th><th>Selisih</th><th>Catatan</th></tr></thead><tbody>{crosscheck.filter(r=>crossFilter==='ALL'||r.status===crossFilter).slice(0,1000).map((r,i)=><tr key={r.customer+'-'+r.code+'-'+r.unit+'-'+i}><td><span className={'bc27-status bc27-status-'+r.status.toLowerCase().replace(/[^a-z]+/g,'-')}>{r.status}</span></td><td>{r.customer}</td><td>{r.code}</td><td className="wide-cell">{r.description}</td><td>{(r.internalCodes||[]).join(' + ')}</td><td>{r.unit}</td><td>{fmt(r.quantity)}</td><td>{r.inventoryQuantity==null?'—':fmt(r.inventoryQuantity)}</td><td>{r.difference==null?'—':fmt(r.difference)}</td><td className="wide-cell">{r.note}</td></tr>)}</tbody></table></div>
