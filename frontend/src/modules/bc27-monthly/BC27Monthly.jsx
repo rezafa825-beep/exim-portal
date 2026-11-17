@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { DATABASE_HEADERS, OUTPUT_HEADERS, CATEGORY_MASTER, parseMonthlyBc27Files, exportMonthlyWorkbook } from './bc27MonthlyEngine';
+import { parseErpMappings, parseFinishedGoodsInventory, buildCrosscheck, exportCrosscheck, downloadMappingTemplate } from './bc27CrosscheckEngine';
 
 const monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const fmt = value => Number(value || 0).toLocaleString('id-ID', { maximumFractionDigits: 4 });
@@ -13,6 +14,18 @@ export default function BC27Monthly() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [erpFiles, setErpFiles] = useState([]);
+  const [inventoryFile, setInventoryFile] = useState(null);
+  const [mappings, setMappings] = useState([]);
+  const [inventory, setInventory] = useState(null);
+  const [crosscheck, setCrosscheck] = useState(null);
+  const [crossBusy, setCrossBusy] = useState(false);
+  const [crossError, setCrossError] = useState('');
+  const [crossFilter, setCrossFilter] = useState('ALL');
+  const [mappingMode, setMappingMode] = useState('replace');
+  const [manualCustomer, setManualCustomer] = useState('');
+  const [manualCeisa, setManualCeisa] = useState('');
+  const [manualInternal, setManualInternal] = useState('');
 
   const years = useMemo(() => {
     const current = now.getFullYear();
@@ -25,14 +38,14 @@ export default function BC27Monthly() {
       incoming.forEach(file => map.set(`${file.name}:${file.size}:${file.lastModified}`, file));
       return [...map.values()];
     });
-    setResult(null); setError(''); setNotice('');
+    setResult(null); setError(''); setNotice(''); setInventoryFile(null); setInventory(null); setCrosscheck(null); setCrossError('');
     if (!incoming.length) setError('Pilih file Excel CEISA dengan format .xlsx.');
   };
   const processFiles = async () => {
     setBusy(true); setError(''); setNotice('');
     try {
       const parsed = await parseMonthlyBc27Files(files, period);
-      setResult(parsed); setTab('database');
+      setResult(parsed); setTab('database'); setInventoryFile(null); setInventory(null); setCrosscheck(null); setCrossError('');
       const s = parsed.summary;
       setNotice(`Selesai membaca ${s.files} file. ${s.databaseRows.toLocaleString('id-ID')} baris barang masuk DATABASE dan ${s.outputRows.toLocaleString('id-ID')} kelompok barang terbentuk di OUTPUT.`);
       if (parsed.errors.length) setError(parsed.errors.join('\n'));
@@ -40,7 +53,7 @@ export default function BC27Monthly() {
       setResult(null); setError(e.message || 'Gagal memproses Excel CEISA.');
     } finally { setBusy(false); }
   };
-  const reset = () => { setFiles([]); setResult(null); setError(''); setNotice(''); setTab('database'); };
+  const reset = () => { setFiles([]); setResult(null); setError(''); setNotice(''); setTab('database'); setErpFiles([]); setInventoryFile(null); setMappings([]); setInventory(null); setCrosscheck(null); setCrossError(''); };
   const exportExcel = () => {
     if (!result) return;
     exportMonthlyWorkbook(result.database, result.output, period);
@@ -58,8 +71,8 @@ export default function BC27Monthly() {
     <section className="bc27-card">
       <div className="bc27-section-head"><div><h2>1. Periode laporan</h2><p>Transaksi dipilih berdasarkan Tanggal Daftar pada sheet HEADER kolom CQ.</p></div><span className="bc27-step">01</span></div>
       <div className="bc27-period">
-        <label>Bulan<select value={period.month} onChange={e=>{setPeriod(p=>({...p,month:e.target.value}));setResult(null);setNotice('')}}>{monthNames.map((name,i)=><option key={name} value={String(i+1).padStart(2,'0')}>{name}</option>)}</select></label>
-        <label>Tahun<select value={period.year} onChange={e=>{setPeriod(p=>({...p,year:e.target.value}));setResult(null);setNotice('')}}>{years.map(y=><option key={y} value={y}>{y}</option>)}</select></label>
+        <label>Bulan<select value={period.month} onChange={e=>{setPeriod(p=>({...p,month:e.target.value}));setResult(null);setInventory(null);setCrosscheck(null);setCrossError('');setNotice('')}}>{monthNames.map((name,i)=><option key={name} value={String(i+1).padStart(2,'0')}>{name}</option>)}</select></label>
+        <label>Tahun<select value={period.year} onChange={e=>{setPeriod(p=>({...p,year:e.target.value}));setResult(null);setInventory(null);setCrosscheck(null);setCrossError('');setNotice('')}}>{years.map(y=><option key={y} value={y}>{y}</option>)}</select></label>
       </div>
     </section>
 
@@ -93,6 +106,34 @@ export default function BC27Monthly() {
         <div className="bc27-export-row"><button className="bc27-primary" disabled={!result.database.length} onClick={exportExcel}>⇩ EXPORT EXCEL · DATABASE + OUTPUT</button><small>File Excel berisi dua sheet: DATABASE dan OUTPUT.</small></div>
       </section>
     </>}
+
+
+      {result&&<section className="bc27-card bc27-crosscheck">
+        <div className="bc27-section-head"><div><h2>5. Crosscheck CEISA vs IT Inventory</h2><p>Bagian ini tersedia setelah CEISA berhasil diproses. Hanya kategori 1 · Hasil Produksi yang dibandingkan.</p></div><span className="bc27-step">05</span></div>
+        <div className="bc27-cross-flow">
+          <div className="bc27-cross-step"><b>A · Master mapping ERP</b><p>Upload file ERP FINISH PART dan FINISH PART MOLDED. Sistem membaca semua sheet dengan kolom CUSTOMER, NO STYLE, dan ITEM CODE CHINLI. Mapping diterapkan sesuai customer, bukan lintas customer.</p>
+            <label className="bc27-file-input">Pilih file master ERP (.xlsx)<input type="file" accept=".xlsx" multiple onChange={e=>{setErpFiles([...e.target.files]);setCrosscheck(null);setCrossError('')}}/></label>
+            {erpFiles.length>0&&<small>{erpFiles.map(f=>f.name).join(' · ')}</small>}
+            <label className="bc27-mapping-mode">Mode mapping<select value={mappingMode} onChange={e=>setMappingMode(e.target.value)}><option value="replace">Replace · Ganti seluruh master</option><option value="update">Update · Tambahkan/perbarui mapping</option></select></label><button className="bc27-secondary" onClick={downloadMappingTemplate}>DOWNLOAD TEMPLATE MAPPING</button><button className="bc27-secondary" disabled={!erpFiles.length||crossBusy} onClick={async()=>{setCrossBusy(true);setCrossError('');try{if(mappingMode==='replace'&&mappings.length&&!window.confirm('Ganti seluruh master mapping yang sedang aktif?'))return;const m=await parseErpMappings(erpFiles);setMappings(mappingMode==='update'?[...new Map([...mappings,...m].map(x=>[[x.customerKey,x.ceisaKey,x.internalKey].join('|'),x])).values()]:m);setCrosscheck(null)}catch(e){setCrossError(e.message||'Gagal membaca master ERP.')}finally{setCrossBusy(false)}}}>BACA MASTER ERP</button>
+            <div className="bc27-manual-mapping"><b>Tambah mapping manual</b><div><input value={manualCustomer} onChange={e=>setManualCustomer(e.target.value)} placeholder="Customer (nama entitas CEISA)"/><input value={manualCeisa} onChange={e=>setManualCeisa(e.target.value)} placeholder="Kode CEISA / NO STYLE"/><input value={manualInternal} onChange={e=>setManualInternal(e.target.value)} placeholder="Kode internal Chinli"/></div><button className="bc27-secondary" disabled={!manualCustomer.trim()||!manualCeisa.trim()||!manualInternal.trim()} onClick={()=>{const row={customer:manualCustomer.trim(),customerKey:manualCustomer.trim().toUpperCase().replace(/[^A-Z0-9]/g,''),ceisaCode:manualCeisa.trim(),ceisaKey:manualCeisa.trim().toUpperCase().replace(/[^A-Z0-9]/g,''),internalCode:manualInternal.trim(),internalKey:manualInternal.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')};setMappings(prev=>[...prev.filter(x=>![x.customerKey,x.ceisaKey,x.internalKey].every((v,i)=>v===[row.customerKey,row.ceisaKey,row.internalKey][i])),row]);setManualCustomer('');setManualCeisa('');setManualInternal('');setCrosscheck(null)}}>TAMBAH MAPPING</button></div>
+            {mappings.length>0&&<small className="bc27-good">{mappings.length.toLocaleString('id-ID')} relasi mapping terbaca.</small>}
+          </div>
+          <div className="bc27-cross-step"><b>B · Upload IT Inventory</b><p>Gunakan file mutasi barang jadi. Sistem membaca sheet BARANG JADI, kolom KODE BARANG, SAT, dan PENGELUARAN.</p>
+            <label className="bc27-file-input">Pilih file IT Inventory (.xls / .xlsx)<input type="file" accept=".xls,.xlsx" onChange={e=>{setInventoryFile(e.target.files?.[0]||null);setInventory(null);setCrosscheck(null);setCrossError('')}}/></label>
+            {inventoryFile&&<small>{inventoryFile.name}</small>}
+          </div>
+        </div>
+        <div className="bc27-actions"><button className="bc27-primary" disabled={!inventoryFile||!mappings.length||crossBusy} onClick={async()=>{setCrossBusy(true);setCrossError('');try{const inv=await parseFinishedGoodsInventory(inventoryFile);const rows=buildCrosscheck(result.database,inv.rows,mappings);setInventory(inv);setCrosscheck(rows);setCrossFilter('ALL')}catch(e){setCrossError(e.message||'Crosscheck gagal diproses.')}finally{setCrossBusy(false)}}}>{crossBusy?'MEMPROSES CROSSCHECK...':'JALANKAN CROSSCHECK'}</button><button className="bc27-secondary" disabled={!crosscheck?.length} onClick={()=>exportCrosscheck(crosscheck,period.month+'-'+period.year,inventory?.period)}>EXPORT HASIL EXCEL</button></div>
+        {crossError&&<div className="bc27-error">{crossError}</div>}
+        {crosscheck&&<>
+          <div className="bc27-cross-meta"><span>Periode CEISA: <b>{monthNames[Number(period.month)-1]} {period.year}</b></span><span>Periode IT Inventory: <b>{inventory?.period||'Tidak terdeteksi'}</b></span><span>Baris hasil: <b>{crosscheck.length.toLocaleString('id-ID')}</b></span></div>
+          {inventory?.period&&!inventory.period.includes(period.year+'-'+period.month)&&!inventory.period.includes(period.year+'/'+Number(period.month))&&<div className="bc27-warning">Periode berbeda: IT Inventory ({inventory.period}) perlu diperiksa terhadap periode CEISA ({monthNames[Number(period.month)-1]} {period.year}).</div>}
+          <div className="bc27-cross-summary">{['MATCH','NOT MATCH','CEISA ONLY','IT ONLY','BELUM ADA MAPPING','MAPPING AMBIGU'].map(s=><button key={s} className={crossFilter===s?'active':''} onClick={()=>setCrossFilter(crossFilter===s?'ALL':s)}><small>{s}</small><b>{crosscheck.filter(r=>r.status===s).length.toLocaleString('id-ID')}</b></button>)}</div>
+          <div className="bc27-cross-filter"><label>Filter status<select value={crossFilter} onChange={e=>setCrossFilter(e.target.value)}><option value="ALL">Semua status</option>{['MATCH','NOT MATCH','CEISA ONLY','IT ONLY','BELUM ADA MAPPING','MAPPING AMBIGU'].map(s=><option key={s}>{s}</option>)}</select></label><small>Selisih = Qty CEISA dikurangi Qty IT Inventory.</small></div>
+          <div className="bc27-table-wrap"><table className="bc27-table"><thead><tr><th>Status</th><th>Customer</th><th>Kode CEISA</th><th>Uraian Barang</th><th>Kode Internal ERP</th><th>Satuan</th><th>Qty CEISA</th><th>Qty IT Inventory</th><th>Selisih</th><th>Catatan</th></tr></thead><tbody>{crosscheck.filter(r=>crossFilter==='ALL'||r.status===crossFilter).slice(0,1000).map((r,i)=><tr key={r.customer+'-'+r.code+'-'+r.unit+'-'+i}><td><span className={'bc27-status bc27-status-'+r.status.toLowerCase().replace(/[^a-z]+/g,'-')}>{r.status}</span></td><td>{r.customer}</td><td>{r.code}</td><td className="wide-cell">{r.description}</td><td>{(r.internalCodes||[]).join(' + ')}</td><td>{r.unit}</td><td>{fmt(r.quantity)}</td><td>{r.inventoryQuantity==null?'—':fmt(r.inventoryQuantity)}</td><td>{r.difference==null?'—':fmt(r.difference)}</td><td className="wide-cell">{r.note}</td></tr>)}</tbody></table></div>
+          {crosscheck.filter(r=>crossFilter==='ALL'||r.status===crossFilter).length>1000&&<p className="bc27-preview-note">Pratinjau dibatasi 1.000 baris. Ekspor Excel memuat seluruh hasil.</p>}
+        </>}
+      </section>}
 
     <section className="bc27-card bc27-rules">
       <h2>Aturan pembacaan dan penggabungan</h2>
