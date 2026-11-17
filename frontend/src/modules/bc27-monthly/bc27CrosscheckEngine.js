@@ -68,20 +68,23 @@ export function buildCrosscheck(database,inventoryRows,mappings) {
   if(!ceisaRaw.length) throw new Error('Tidak ditemukan barang kategori 1 · Hasil Produksi pada hasil CEISA.');
   const ceisa=aggregate(ceisaRaw,r=>[r.customerKey,r.codeKey,r.unitKey].join('|'));
   const ceisaByKey=new Map(ceisa.map(r=>[[r.customerKey,r.codeKey,r.unitKey].join('|'),r]));
-  const mapByCeisa=new Map(), mapByInternal=new Map();
+  const mapByCeisa=new Map(), mapByInternal=new Map(), mapByCustomerInternal=new Map();
   for(const m of mappings||[]) {
     const a=[m.customerKey||norm(m.customer),m.ceisaKey||norm(m.ceisaCode)], b=[m.customerKey||norm(m.customer),m.internalKey||norm(m.internalCode)];
     const ck=a.join('|'),ik=b.join('|');
     if(!mapByCeisa.has(ck))mapByCeisa.set(ck,new Map()); mapByCeisa.get(ck).set(m.internalKey||norm(m.internalCode),m);
     if(!mapByInternal.has(m.internalKey||norm(m.internalCode)))mapByInternal.set(m.internalKey||norm(m.internalCode),new Map());
     mapByInternal.get(m.internalKey||norm(m.internalCode)).set(ck,m);
+    const customerInternalKey=[m.customerKey||norm(m.customer),m.internalKey||norm(m.internalCode)].join('|');
+    if(!mapByCustomerInternal.has(customerInternalKey))mapByCustomerInternal.set(customerInternalKey,new Map());
+    mapByCustomerInternal.get(customerInternalKey).set(ck,m);
   }
   const itMap=new Map((inventoryRows||[]).map(r=>[[r.internalKey||norm(r.internalCode),r.unitKey||norm(r.unit)].join('|'),r]));
   const used=new Set(), rows=[];
   for(const c of ceisa) {
     const key=[c.customerKey,c.codeKey].join('|'), internals=[...(mapByCeisa.get(key)?.values()||[])];
     if(!internals.length){rows.push({...c,internalCodes:[],inventoryQuantity:null,difference:null,status:'BELUM ADA MAPPING',note:'Kode CEISA belum ada di master ERP untuk customer ini.'});continue;}
-    const ambiguous=internals.some(m=>(mapByInternal.get(m.internalKey||norm(m.internalCode))?.size||0)>1);
+    const ambiguous=internals.some(m=>(mapByCustomerInternal.get([c.customerKey,m.internalKey||norm(m.internalCode)].join('|'))?.size||0)>1);
     if(ambiguous){internals.forEach(m=>used.add([m.internalKey||norm(m.internalCode),c.unitKey].join('|')));rows.push({...c,internalCodes:internals.map(m=>m.internalCode),inventoryQuantity:null,difference:null,status:'MAPPING AMBIGU',note:'Satu kode internal terhubung ke lebih dari satu customer/kode CEISA pada master ERP. Perlu verifikasi manual.'});continue;}
     const found=internals.map(m=>itMap.get([m.internalKey||norm(m.internalCode),c.unitKey].join('|')));
     const present=found.filter(Boolean); present.forEach(r=>used.add([r.internalKey||norm(r.internalCode),r.unitKey||norm(r.unit)].join('|')));
