@@ -1,12 +1,94 @@
 import * as XLSX from 'xlsx';
-const clean=v=>String(v??'').replace(/\u00a0/g,' ').trim();
-const norm=v=>clean(v).toUpperCase().replace(/[^A-Z0-9]/g,'');
-const qty=v=>{if(typeof v==='number')return Number.isFinite(v)?v:0;const s=clean(v).replace(/\s/g,'');const n=Number(s.replace(/,/g,''));return Number.isFinite(n)?n:0;};
-const rowsOf=(wb,n)=>{const s=wb.Sheets[n];if(!s)throw new Error('Sheet '+n+' tidak ditemukan.');return XLSX.utils.sheet_to_json(s,{header:1,defval:'',raw:true,blankrows:false});};
-const headerAt=(rows,keys,max=40)=>{for(let i=0;i<Math.min(rows.length,max);i++){const h=rows[i].map(norm);if(keys.every(k=>h.some(x=>x===k||x.includes(k))))return i;}return -1;};
-const excelDate=v=>{if(v instanceof Date)return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');if(typeof v==='number'){const d=XLSX.SSF.parse_date_code(v);if(d)return d.y+'-'+String(d.m).padStart(2,'0')+'-'+String(d.d).padStart(2,'0');}const s=clean(v);let m=s.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);if(m)return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');m=s.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);return m?m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'):'';};
-const aggregate=(list,key)=>{const m=new Map();for(const r of list){const k=key(r);const x=m.get(k)||{...r,quantity:0};x.quantity+=r.quantity;m.set(k,x);}return [...m.values()];};
-export async function parseErpMappings(files){const out=[],errors=[];for(const f of files){try{const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});for(const sn of wb.SheetNames){const rows=rowsOf(wb,sn),hi=headerAt(rows,['CUSTOMER','NOSTYLE','ITEMCODECHINLI'],35);if(hi<0)continue;const h=rows[hi].map(norm),idx=k=>h.findIndex(x=>x===k||x.includes(k)),a=idx('CUSTOMER'),b=idx('NOSTYLE'),c=idx('ITEMCODECHINLI');for(const row of rows.slice(hi+1)){const customer=clean(row[a]),ceisaCode=clean(row[b]),internalCode=clean(row[c]);if(customer&&ceisaCode&&internalCode)out.push({customer,customerKey:norm(customer),ceisaCode,ceisaKey:norm(ceisaCode),internalCode,internalKey:norm(internalCode)});}}}catch(e){errors.push(f.name+': '+e.message);}}if(!out.length&&errors.length)throw new Error(errors.join('\n'));const u=new Map();out.forEach(x=>u.set([x.customerKey,x.ceisaKey,x.internalKey].join('|'),x));return [...u.values()];}
-export async function parseFinishedGoodsInventory(file){const wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true}),sn=wb.SheetNames.find(x=>norm(x)==='BARANGJADI')||wb.SheetNames[0],rows=rowsOf(wb,sn),hi=headerAt(rows,['KODEBARANG','PENGELUARAN']);if(hi<0)throw new Error('Header KODE BARANG dan PENGELUARAN tidak ditemukan pada sheet BARANG JADI.');const h=rows[hi].map(norm),idx=k=>h.findIndex(x=>x===k||x.includes(k)),c=idx('KODEBARANG'),n=idx('NAMABARANG'),u=idx('SAT'),q=idx('PENGELUARAN'),items=[];for(const r of rows.slice(hi+1)){const code=clean(r[c]),unit=clean(r[u]);if(!code||!unit)continue;items.push({internalCode:code,internalKey:norm(code),description:clean(r[n]),unit,unitKey:norm(unit),quantity:qty(r[q])});}if(!items.length)throw new Error('Tidak ditemukan baris barang pada IT Inventory.');const p=rows.slice(0,hi).flat().map(clean).find(x=>/\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(x)||/\d{1,2}[-/]\d{1,2}[-/]\d{4}/.test(x))||'',dates=[...p.matchAll(/(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4})/g)].map(x=>excelDate(x[1]));return {rows:aggregate(items,x=>x.internalKey+'|'+x.unitKey),period:dates.join(' s/d ')||p,sheet:sn};}
-export function buildCrosscheck(database,inventory,mappings){const goods=database.filter(r=>clean(r['Kategori Barang']).toUpperCase()==='HASIL PRODUKSI').map(r=>{const customer=clean(r['Entitas Perusahaan Tujuan']),adonia=/ADONIA/i.test(customer),code=clean(adonia?r['Spesifikasi Lain']:r['Kode Barang']);return {customer,customerKey:norm(customer),code,codeKey:norm(code),description:clean(r['Uraian Barang']),unit:clean(r['Jenis Satuan']),unitKey:norm(r['Jenis Satuan']),quantity:qty(r['Jumlah Satuan'])};}).filter(x=>x.codeKey&&x.unitKey);if(!goods.length)throw new Error('Tidak ditemukan data kategori Hasil Produksi (kategori 1) pada hasil CEISA.');const cg=aggregate(goods,x=>x.customerKey+'|'+x.codeKey+'|'+x.unitKey),ceisaMap=new Map(cg.map(x=>[[x.customerKey,x.codeKey,x.unitKey].join('|'),x])),byInternal=new Map();for(const m of mappings){if(!byInternal.has(m.internalKey))byInternal.set(m.internalKey,[]);byInternal.get(m.internalKey).push(m);}const itg=aggregate(inventory,x=>x.internalKey+'|'+x.unitKey),resolved=new Map(),extras=[],used=new Set();for(const it of itg){if(Math.abs(it.quantity)<1e-12)continue;const refs=byInternal.get(it.internalKey)||[];if(!refs.length){extras.push({status:'BELUM ADA MAPPING',customer:'-',code:it.internalCode,description:it.description,unit:it.unit,quantity:0,inventoryQuantity:it.quantity,difference:null,internalCodes:[it.internalCode],note:'Kode internal tidak ditemukan pada master ERP.'});continue;}const candidates=new Map();for(const m of refs){const key=[m.customerKey,m.ceisaKey,it.unitKey].join('|');if(ceisaMap.has(key))candidates.set(key,{...m,ceisa:ceisaMap.get(key)});}if(candidates.size>1){extras.push({status:'MAPPING AMBIGU',customer:[...new Set([...candidates.values()].map(x=>x.customer))].join(', '),code:it.internalCode,description:it.description,unit:it.unit,quantity:0,inventoryQuantity:it.quantity,difference:null,internalCodes:[it.internalCode],note:'Lebih dari satu pasangan customer/kode CEISA ditemukan pada periode ini; tidak dipilih otomatis.'});continue;}if(!candidates.size){extras.push({status:'IT ONLY',customer:[...new Set(refs.map(x=>x.customer))].join(', '),code:it.internalCode,description:it.description,unit:it.unit,quantity:0,inventoryQuantity:it.quantity,difference:-it.quantity,internalCodes:[it.internalCode],note:'Mapping tersedia, tetapi pasangan kode CEISA tidak ditemukan pada periode ini.'});continue;}const [key,m]=[...candidates.entries()][0],x=resolved.get(key)||{quantity:0,codes:new Set()};x.quantity+=it.quantity;x.codes.add(it.internalCode);resolved.set(key,x);used.add(it.internalKey+'|'+it.unitKey);}const rows=cg.map(c=>{const key=[c.customerKey,c.codeKey,c.unitKey].join('|'),it=resolved.get(key),iq=it?it.quantity:0,diff=c.quantity-iq;return {...c,internalCodes:it?[...it.codes]:[],inventoryQuantity:it?iq:0,difference:it?diff:null,status:!it?'CEISA ONLY':Math.abs(diff)<1e-8?'MATCH':'NOT MATCH',note:!it?'Kode CEISA tidak memiliki pengeluaran IT yang berhasil dipetakan.':Math.abs(diff)<1e-8?'Jumlah CEISA dan IT Inventory sesuai.':'Jumlah CEISA dan IT Inventory berbeda.'};});return [...rows,...extras].sort((a,b)=>a.status.localeCompare(b.status)||a.customer.localeCompare(b.customer)||a.code.localeCompare(b.code));}
-export function exportCrosscheck(rows,period,inventoryPeriod){const wb=XLSX.utils.book_new(),data=rows.map(r=>({'Status':r.status,'Customer':r.customer,'Kode CEISA / Internal':r.code,'Uraian Barang':r.description,'Kode Internal ERP':(r.internalCodes||[]).join(' + '),'Satuan':r.unit,'Qty CEISA':r.quantity,'Qty IT Inventory':r.inventoryQuantity??'','Selisih (CEISA - IT)':r.difference??'','Catatan':r.note})),ws=XLSX.utils.json_to_sheet(data);ws['!cols']=[20,32,26,48,38,14,18,20,22,70].map(wch=>({wch}));if(ws['!ref'])ws['!autofilter']={ref:ws['!ref']};XLSX.utils.book_append_sheet(wb,ws,'CROSSCHECK');const s=XLSX.utils.aoa_to_sheet([['Periode CEISA',period],['Periode IT Inventory',inventoryPeriod||'Tidak terdeteksi'],['Total baris',rows.length]]);XLSX.utils.book_append_sheet(wb,s,'RINGKASAN');XLSX.writeFile(wb,'CROSSCHECK_IT_CEISA_'+period+'_'+Date.now()+'.xlsx');}
+
+const clean = v => String(v ?? '').replace(/\u00a0/g, ' ').trim();
+const norm = v => clean(v).toUpperCase().replace(/[^A-Z0-9]/g, '');
+const number = v => { if (typeof v === 'number') return Number.isFinite(v) ? v : 0; const s=clean(v).replace(/\s/g,''); const n=Number(s.replace(/,/g,'')); return Number.isFinite(n)?n:0; };
+const rowsOf = (wb,name) => { const ws=wb.Sheets[name]; if(!ws) throw new Error('Sheet '+name+' tidak ditemukan.'); return XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true,blankrows:false}); };
+const findHeader = (rows,keys,max=40) => { for(let i=0;i<Math.min(rows.length,max);i++){const h=(rows[i]||[]).map(norm);if(keys.every(k=>h.some(v=>v===k||v.includes(k))))return i;} return -1; };
+const aggregate = (rows,keyFn) => { const map=new Map(); for(const r of rows){const k=keyFn(r);if(!map.has(k))map.set(k,{...r,quantity:0});map.get(k).quantity+=r.quantity;} return [...map.values()]; };
+const dateText = v => { if(v instanceof Date&&!Number.isNaN(v.getTime()))return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0'); if(typeof v==='number'){const d=XLSX.SSF.parse_date_code(v);if(d)return d.y+'-'+String(d.m).padStart(2,'0')+'-'+String(d.d).padStart(2,'0');} const s=clean(v);let m=s.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);if(m)return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');m=s.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);return m?m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'):''; };
+
+export async function parseErpMappings(files) {
+  const out=[],errors=[];
+  for(const file of files||[]) {
+    try {
+      const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});
+      for(const sheetName of wb.SheetNames) {
+        const rows=rowsOf(wb,sheetName), hi=findHeader(rows,['CUSTOMER','NOSTYLE','ITEMCODECHINLI'],35);
+        if(hi<0) continue;
+        const h=rows[hi].map(norm), col=k=>h.findIndex(v=>v===k||v.includes(k));
+        const c=col('CUSTOMER'), s=col('NOSTYLE'), i=col('ITEMCODECHINLI');
+        for(const row of rows.slice(hi+1)) {
+          const customer=clean(row[c]),ceisaCode=clean(row[s]),internalCode=clean(row[i]);
+          if(customer&&ceisaCode&&internalCode) out.push({customer,customerKey:norm(customer),ceisaCode,ceisaKey:norm(ceisaCode),internalCode,internalKey:norm(internalCode),source:file.name,sheet:sheetName});
+        }
+      }
+    } catch(e) { errors.push(file.name+': '+(e.message||'gagal dibaca')); }
+  }
+  if(!out.length) throw new Error(errors.length?errors.join('\n'):'Tidak ditemukan sheet dengan header CUSTOMER, NO STYLE, dan ITEM CODE CHINLI.');
+  const unique=new Map(); out.forEach(r=>unique.set([r.customerKey,r.ceisaKey,r.internalKey].join('|'),r)); return [...unique.values()];
+}
+
+export async function parseFinishedGoodsInventory(file) {
+  if(!file) throw new Error('Pilih file IT Inventory terlebih dahulu.');
+  if(!/\.xlsx?$/i.test(file.name)) throw new Error('Format file IT Inventory harus .xls atau .xlsx.');
+  const wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});
+  const sheetName=wb.SheetNames.find(n=>norm(n)==='BARANGJADI')||wb.SheetNames[0], rows=rowsOf(wb,sheetName);
+  const hi=findHeader(rows,['KODEBARANG','PENGELUARAN']);
+  if(hi<0) throw new Error(file.name+': header KODE BARANG, SAT, dan PENGELUARAN tidak ditemukan.');
+  const h=rows[hi].map(norm), col=k=>h.findIndex(v=>v===k||v.includes(k));
+  const c=col('KODEBARANG'), n=col('NAMABARANG'), u=col('SAT'), q=col('PENGELUARAN');
+  if(c<0||u<0||q<0) throw new Error('Kolom KODE BARANG, SAT, atau PENGELUARAN tidak lengkap.');
+  const raw=[];
+  for(const row of rows.slice(hi+1)){const code=clean(row[c]),unit=clean(row[u]);if(!code||!unit)continue;raw.push({internalCode:code,internalKey:norm(code),description:n>=0?clean(row[n]):'',unit,unitKey:norm(unit),quantity:number(row[q])});}
+  if(!raw.length) throw new Error('Tidak ditemukan data barang pada sheet '+sheetName+'.');
+  const periodLine=rows.slice(0,hi).flat().map(clean).find(v=>/\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(v)||/\d{1,2}[-/]\d{1,2}[-/]\d{4}/.test(v))||'';
+  const dates=[...periodLine.matchAll(/(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4})/g)].map(m=>dateText(m[1]));
+  return {rows:aggregate(raw,r=>r.internalKey+'|'+r.unitKey),period:dates.join(' s/d ')||periodLine,sourceSheet:sheetName,sourceRows:raw.length};
+}
+
+export function buildCrosscheck(database,inventoryRows,mappings) {
+  const ceisaRaw=(database||[]).filter(r=>clean(r['Kategori Barang']).toUpperCase()==='HASIL PRODUKSI').map(r=>{
+    const customer=clean(r['Entitas Perusahaan Tujuan']), adonia=/ADONIA/i.test(customer), code=clean(adonia?r['Spesifikasi Lain']:r['Kode Barang']);
+    return {customer,customerKey:norm(customer),code,codeKey:norm(code),description:clean(r['Uraian Barang']),unit:clean(r['Jenis Satuan']),unitKey:norm(r['Jenis Satuan']),quantity:number(r['Jumlah Satuan'])};
+  }).filter(r=>r.customerKey&&r.codeKey&&r.unitKey);
+  if(!ceisaRaw.length) throw new Error('Tidak ditemukan barang kategori 1 · Hasil Produksi pada hasil CEISA.');
+  const ceisa=aggregate(ceisaRaw,r=>[r.customerKey,r.codeKey,r.unitKey].join('|'));
+  const ceisaByKey=new Map(ceisa.map(r=>[[r.customerKey,r.codeKey,r.unitKey].join('|'),r]));
+  const mapByCeisa=new Map(), mapByInternal=new Map();
+  for(const m of mappings||[]) {
+    const a=[m.customerKey||norm(m.customer),m.ceisaKey||norm(m.ceisaCode)], b=[m.customerKey||norm(m.customer),m.internalKey||norm(m.internalCode)];
+    const ck=a.join('|'),ik=b.join('|');
+    if(!mapByCeisa.has(ck))mapByCeisa.set(ck,new Map()); mapByCeisa.get(ck).set(m.internalKey||norm(m.internalCode),m);
+    if(!mapByInternal.has(m.internalKey||norm(m.internalCode)))mapByInternal.set(m.internalKey||norm(m.internalCode),new Map());
+    mapByInternal.get(m.internalKey||norm(m.internalCode)).set(ck,m);
+  }
+  const itMap=new Map((inventoryRows||[]).map(r=>[[r.internalKey||norm(r.internalCode),r.unitKey||norm(r.unit)].join('|'),r]));
+  const used=new Set(), rows=[];
+  for(const c of ceisa) {
+    const key=[c.customerKey,c.codeKey].join('|'), internals=[...(mapByCeisa.get(key)?.values()||[])];
+    if(!internals.length){rows.push({...c,internalCodes:[],inventoryQuantity:null,difference:null,status:'BELUM ADA MAPPING',note:'Kode CEISA belum ada di master ERP untuk customer ini.'});continue;}
+    const ambiguous=internals.some(m=>(mapByInternal.get(m.internalKey||norm(m.internalCode))?.size||0)>1);
+    if(ambiguous){rows.push({...c,internalCodes:internals.map(m=>m.internalCode),inventoryQuantity:null,difference:null,status:'MAPPING AMBIGU',note:'Satu kode internal terhubung ke lebih dari satu customer/kode CEISA pada master ERP. Perlu verifikasi manual.'});continue;}
+    const found=internals.map(m=>itMap.get([m.internalKey||norm(m.internalCode),c.unitKey].join('|')));
+    const present=found.filter(Boolean); present.forEach(r=>used.add([r.internalKey||norm(r.internalCode),r.unitKey||norm(r.unit)].join('|')));
+    const invQty=present.reduce((s,r)=>s+r.quantity,0), missing=internals.filter((m,i)=>!found[i]), diff=c.quantity-invQty;
+    const status=missing.length?(present.length?'NOT MATCH':'CEISA ONLY'):(Math.abs(diff)<1e-8?'MATCH':'NOT MATCH');
+    rows.push({...c,internalCodes:internals.map(m=>m.internalCode),inventoryQuantity:present.length?invQty:0,difference:present.length?diff:null,status,note:missing.length?'Tidak ditemukan di IT Inventory: '+missing.map(m=>m.internalCode).join(', '):(status==='MATCH'?'Jumlah CEISA dan IT Inventory sesuai.':'Jumlah CEISA dan IT Inventory berbeda.')});
+  }
+  for(const it of inventoryRows||[]) {
+    const ik=it.internalKey||norm(it.internalCode), unit=it.unitKey||norm(it.unit), key=[ik,unit].join('|');
+    if(used.has(key)||Math.abs(it.quantity)<1e-12)continue;
+    const refs=[...(mapByInternal.get(ik)?.values()||[])];
+    const ambiguous=refs.length>1;
+    rows.push({customer:[...new Set(refs.map(x=>x.customer))].join(', ')||'-',code:it.internalCode,description:it.description,unit:it.unit,quantity:0,inventoryQuantity:it.quantity,difference:-it.quantity,internalCodes:[it.internalCode],status:ambiguous?'MAPPING AMBIGU':refs.length?'IT ONLY':'BELUM ADA MAPPING',note:ambiguous?'Kode internal mempunyai lebih dari satu pasangan customer/kode CEISA pada master ERP.':refs.length?'Pengeluaran IT Inventory tidak ditemukan pada pasangan CEISA untuk periode ini.':'Kode internal tidak ditemukan pada master ERP.'});
+  }
+  return rows.sort((a,b)=>a.status.localeCompare(b.status)||a.customer.localeCompare(b.customer)||a.code.localeCompare(b.code));
+}
+
+export function exportCrosscheck(rows,period,inventoryPeriod) {
+  const wb=XLSX.utils.book_new(), data=rows.map(r=>({'Status':r.status,'Customer':r.customer,'Kode CEISA / Internal':r.code,'Uraian Barang':r.description,'Kode Internal ERP':(r.internalCodes||[]).join(' + '),'Satuan':r.unit,'Qty CEISA':r.quantity,'Qty IT Inventory':r.inventoryQuantity??'','Selisih (CEISA - IT)':r.difference??'','Catatan':r.note}));
+  const ws=XLSX.utils.json_to_sheet(data); ws['!cols']=[20,34,28,48,40,14,18,20,22,72].map(wch=>({wch})); if(ws['!ref'])ws['!autofilter']={ref:ws['!ref']}; XLSX.utils.book_append_sheet(wb,ws,'CROSSCHECK');
+  const summary=XLSX.utils.aoa_to_sheet([['Keterangan','Nilai'],['Periode CEISA',period],['Periode IT Inventory',inventoryPeriod||'Tidak terdeteksi'],['Total baris',rows.length],...['MATCH','NOT MATCH','CEISA ONLY','IT ONLY','BELUM ADA MAPPING','MAPPING AMBIGU'].map(s=>[s,rows.filter(r=>r.status===s).length])]); XLSX.utils.book_append_sheet(wb,summary,'RINGKASAN');
+  XLSX.writeFile(wb,'CROSSCHECK_IT_CEISA_'+period+'_'+Date.now()+'.xlsx');
+}
