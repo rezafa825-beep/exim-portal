@@ -2,7 +2,20 @@ import * as XLSX from 'xlsx';
 
 const clean = v => String(v ?? '').replace(/\u00a0/g, ' ').trim();
 const norm = v => clean(v).toUpperCase().replace(/[^A-Z0-9]/g, '');
-const number = v => { if (typeof v === 'number') return Number.isFinite(v) ? v : 0; const s=clean(v).replace(/\s/g,''); const n=Number(s.replace(/,/g,'')); return Number.isFinite(n)?n:0; };
+const number = v => {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  let value = clean(v).replace(/\\s/g, '');
+  if (!value) return 0;
+  if (value.includes(',') && value.includes('.')) {
+    value = value.lastIndexOf(',') > value.lastIndexOf('.')
+      ? value.replace(/\\./g, '').replace(',', '.')
+      : value.replace(/,/g, '');
+  } else if (value.includes(',')) {
+    value = value.replace(',', '.');
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 const rowsOf = (wb,name) => { const ws=wb.Sheets[name]; if(!ws) throw new Error('Sheet '+name+' tidak ditemukan.'); return XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true,blankrows:false}); };
 const findHeader = (rows,keys,max=40) => { for(let i=0;i<Math.min(rows.length,max);i++){const h=(rows[i]||[]).map(norm);if(keys.every(k=>h.some(v=>v===k||v.includes(k))))return i;} return -1; };
 const aggregate = (rows,keyFn) => { const map=new Map(); for(const r of rows){const k=keyFn(r);if(!map.has(k))map.set(k,{...r,quantity:0});map.get(k).quantity+=r.quantity;} return [...map.values()]; };
