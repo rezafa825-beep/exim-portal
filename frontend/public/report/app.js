@@ -15,12 +15,12 @@ const PURPOSE_MASTER = {
   "23": {"1":"PEMBELIAN BKP","2":"PENERIMA JASA BKP"}
 };
 const DOC_TYPES = [
-  {value:"27-out", label:"BC 2.7 Keluar", code:"27", direction:"out"},
-  {value:"27-in", label:"BC 2.7 Masuk", code:"27", direction:"in"},
-  {value:"40-in", label:"BC 4.0 Masuk", code:"40", direction:"in"},
-  {value:"41-out", label:"BC 4.1 Keluar", code:"41", direction:"out"},
-  {value:"261-out", label:"BC 2.6.1", code:"261", direction:"out"},
+  {value:"27-out", label:"BC 2.7 Out", code:"27", direction:"out"},
+  {value:"27-in", label:"BC 2.7 In", code:"27", direction:"in"},
+  {value:"40-in", label:"BC 4.0", code:"40", direction:"in"},
+  {value:"41-out", label:"BC 4.1", code:"41", direction:"out"},
   {value:"262-in", label:"BC 2.6.2", code:"262", direction:"in"},
+  {value:"261-out", label:"BC 2.6.1", code:"261", direction:"out"},
   {value:"25-out", label:"BC 2.5", code:"25", direction:"out"},
   {value:"23-in", label:"BC 2.3", code:"23", direction:"in"}
 ];
@@ -29,6 +29,7 @@ let uploadedFiles = new Map();
 let fileSequence = 0;
 let redNumbers = new Set();
 let excludedNumbers = new Set();
+let exportSelected = new Set();
 function norm(v) { return String(v ?? "").trim(); }
 function key(v) { return norm(v).replace(/\.0$/, ""); }
 function excelDate(v) {
@@ -333,12 +334,15 @@ function renderUploadedFiles() {
 function removeUploadedFile(fileId) {
   const item = uploadedFiles.get(fileId);
   if (!item) return;
-  item.allRecords.forEach(r => redNumbers.delete(r.recordId));
+  item.allRecords.forEach(r => { redNumbers.delete(r.recordId); exportSelected.delete(r.recordId); });
   uploadedFiles.delete(fileId);
   rebuildRecords();
   if (!records.length) {
     $("docType").disabled = true; $("partyMode").disabled = true; $("partyName").disabled = true;
     $("generateBtn").disabled = true; $("copyBtn").disabled = true;
+    $("copyExcelBtn").disabled = true; $("exportBtn").disabled = true;
+    $("exportList").className = "export-list empty"; $("exportList").textContent = "Unggah Excel untuk menampilkan dokumen.";
+    $("exportSelectionStatus").textContent = "0 dokumen dipilih untuk ekspor.";
     $("docType").innerHTML = '<option value="">Unggah Excel terlebih dahulu</option>';
     $("partyName").innerHTML = '<option value="__ALL__">Semua pihak</option>';
     $("redList").className = "red-list empty"; $("redList").textContent = "Unggah Excel untuk menampilkan daftar dokumen.";
@@ -445,14 +449,131 @@ function buildReport() {
 function updateOutput() {
   if (records.length && !$ ("generateBtn").disabled) $("output").value = buildReport();
 }
+function getExportCandidates() {
+  const mode = currentPartyMode();
+  const partyFilter = $("partyName").value;
+  const q = norm($("exportSearch").value).toLowerCase();
+  return selectedTypeRecords()
+    .map(r => ({...r, reportPartyName: mode === "customer" ? r.customerName : r.supplierName}))
+    .filter(r => r.reportPartyName && (partyFilter === "__ALL__" || r.reportPartyName === partyFilter) && !isExcluded(r))
+    .filter(r => `${r.regNo} ${r.aju} ${r.reportPartyName} ${r.sourceName}`.toLowerCase().includes(q));
+}
+function renderExportList() {
+  const list = $("exportList");
+  if (!list) return;
+  const items = getExportCandidates();
+  list.innerHTML = "";
+  if (!items.length) {
+    list.className = "export-list empty";
+    list.textContent = records.length ? "Tidak ada dokumen sesuai filter atau pencarian." : "Unggah Excel untuk menampilkan dokumen.";
+  } else {
+    list.className = "export-list";
+    items.forEach(r => {
+      const label = document.createElement("label");
+      label.className = "export-row";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = exportSelected.has(r.recordId);
+      cb.addEventListener("change", () => {
+        if (cb.checked) exportSelected.add(r.recordId);
+        else exportSelected.delete(r.recordId);
+        renderExportList();
+      });
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      const title = document.createElement("strong");
+      title.textContent = r.regNo;
+      const small = document.createElement("small");
+      small.textContent = `${r.reportPartyName} · AJU ${r.aju} · ${dateText(r.regDate) || "Tanggal daftar kosong"}`;
+      meta.append(title, small);
+      label.append(cb, meta);
+      list.append(label);
+    });
+  }
+  const count = getExcelReportRows().length;
+  $("exportSelectionStatus").textContent = `${count} dokumen dipilih untuk ekspor.`;
+  $("selectAllExportBtn").disabled = !items.length;
+  $("clearExportSelectionBtn").disabled = !count;
+  $("copyExcelBtn").disabled = !count;
+  $("exportBtn").disabled = !count;
+}
+function getExcelReportRows() {
+  const type = DOC_TYPES.find(x => x.value === $("docType").value);
+  if (!type) return [];
+  const mode = currentPartyMode();
+  const partyFilter = $("partyName").value;
+  const movementDateRaw = $("movementDate").value;
+  const movementDate = movementDateRaw ? dateText(new Date(`${movementDateRaw}T12:00:00`)) : dateText(new Date());
+  return selectedTypeRecords()
+    .map(r => ({...r, reportPartyName: mode === "customer" ? r.customerName : r.supplierName}))
+    .filter(r => exportSelected.has(r.recordId) && r.reportPartyName && (partyFilter === "__ALL__" || r.reportPartyName === partyFilter) && !isExcluded(r))
+    .map(r => ({
+      "Jenis/Kode Dokumen": `${type.label} (Kode ${r.docCode})`,
+      "Nomor AJU": String(r.aju ?? ""),
+      "Nomor Daftar": String(r.regNo ?? ""),
+      "Tanggal Daftar": dateText(r.regDate),
+      "Tanggal Keluar": movementDate,
+      "Nama Customer": r.reportPartyName || ""
+    }));
+}
+function buildExcelWorksheet(rows) {
+  const headers = ["Jenis/Kode Dokumen","Nomor AJU","Nomor Daftar","Tanggal Daftar","Tanggal Keluar","Nama Customer"];
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows.map(r => headers.map(h => String(r[h] ?? "")))]);
+  ws["!cols"] = [{wch:23},{wch:29},{wch:23},{wch:17},{wch:18},{wch:43}];
+  for (let row = 2; row <= rows.length + 1; row++) {
+    for (const col of ["B","C"]) {
+      const cell = ws[`${col}${row}`];
+      if (cell) { cell.t = "s"; cell.v = String(cell.v); }
+    }
+  }
+  return ws;
+}
+async function copyExcelReport() {
+  const rows = getExcelReportRows();
+  if (!rows.length) return;
+  const headers = ["Jenis/Kode Dokumen","Nomor AJU","Nomor Daftar","Tanggal Daftar","Tanggal Keluar","Nama Customer"];
+  const safe = value => String(value ?? "").replace(/\\t/g," ").replace(/\\r?\\n/g," ");
+  const lines = [headers, ...rows.map(r => headers.map(h => r[h]))];
+  const tsv = lines.map((line, i) => line.map((v, col) => {
+    const value = safe(v);
+    return i > 0 && (col === 1 || col === 2) ? `'${value}` : value;
+  }).join("\\t")).join("\\n");
+  try {
+    await navigator.clipboard.writeText(tsv);
+    $("outputStatus").textContent = "Data Excel berhasil disalin. Tempelkan ke Excel mulai dari sel A1.";
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = tsv;
+    area.style.position = "fixed"; area.style.opacity = "0";
+    document.body.append(area); area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    $("outputStatus").textContent = ok ? "Data Excel berhasil disalin. Tempelkan ke Excel mulai dari sel A1." : "Browser tidak mengizinkan salin otomatis. Periksa izin clipboard browser.";
+  }
+}
+function exportExcelReport() {
+  const rows = getExcelReportRows();
+  if (!rows.length) return;
+  const ws = buildExcelWorksheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Laporan EXIM");
+  const datePart = ($("movementDate").value || dateInputToday()).replace(/-/g, "");
+  const type = $("docType").value || "laporan";
+  XLSX.writeFile(wb, `Laporan_EXIM_${type}_${datePart}.xlsx`);
+  $("outputStatus").textContent = "File Excel berhasil dibuat.";
+}
 function refreshAll() {
   refreshPartyOptions();
   renderRedList();
+  renderExportList();
   renderExcludeList();
   updateRedStatus();
   const hasRecords = records.length > 0;
   $("generateBtn").disabled = !hasRecords;
   $("copyBtn").disabled = !hasRecords;
+  $("selectAllExportBtn").disabled = !hasRecords;
+  $("clearExportSelectionBtn").disabled = !exportSelected.size;
+  renderExportList();
   $("output").value = hasRecords ? buildReport() : "";
 }
 function setupDocTypes() {
@@ -511,9 +632,12 @@ $("excelFile").addEventListener("change", async (event) => {
   input.value = ""; // izinkan memilih ulang nama file yang sama bila diperlukan
 });
 $("clearFilesBtn").addEventListener("click",()=>{
-  uploadedFiles.clear(); records=[]; redNumbers.clear(); excludedNumbers.clear();
+  uploadedFiles.clear(); records=[]; redNumbers.clear(); excludedNumbers.clear(); exportSelected.clear();
   $("excludeManual").value=""; $("redManual").value=""; $("docType").disabled=true; $("partyMode").disabled=true; $("partyName").disabled=true;
   $("generateBtn").disabled=true; $("copyBtn").disabled=true;
+  $("copyExcelBtn").disabled=true; $("exportBtn").disabled=true;
+  $("exportList").className="export-list empty"; $("exportList").textContent="Unggah Excel untuk menampilkan dokumen.";
+  $("exportSelectionStatus").textContent="0 dokumen dipilih untuk ekspor.";
   $("docType").innerHTML='<option value="">Unggah Excel terlebih dahulu</option>';
   $("partyName").innerHTML='<option value="__ALL__">Semua pihak</option>';
   $("redList").className="red-list empty"; $("redList").textContent="Unggah Excel untuk menampilkan daftar dokumen.";
@@ -531,6 +655,17 @@ $("goodsType").addEventListener("input",()=>{if(records.length)$("output").value
 $("movementDate").addEventListener("change",()=>{if(records.length)$("output").value=buildReport();});
 $("redSearch").addEventListener("input",renderRedList);
 $("excludeSearch").addEventListener("input",renderExcludeList);
+$("exportSearch").addEventListener("input",renderExportList);
+$("selectAllExportBtn").addEventListener("click",()=>{
+  getExportCandidates().forEach(r => exportSelected.add(r.recordId));
+  renderExportList();
+});
+$("clearExportSelectionBtn").addEventListener("click",()=>{
+  getExportCandidates().forEach(r => exportSelected.delete(r.recordId));
+  renderExportList();
+});
+$("copyExcelBtn").addEventListener("click",copyExcelReport);
+$("exportBtn").addEventListener("click",exportExcelReport);
 $("redManual").addEventListener("input",()=>{updateRedStatus(); if(records.length){renderRedList(); $("output").value=buildReport();}});
 $("excludeManual").addEventListener("input",()=>{updateExcludeStatus(); if(records.length)$("output").value=buildReport();});
 $("generateBtn").addEventListener("click",()=>{$("output").value=buildReport();$("outputStatus").textContent="Laporan diperbarui. Periksa isi sebelum dikirim.";});
