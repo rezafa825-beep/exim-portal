@@ -49,7 +49,7 @@ function App(){
     </aside>
     <div className="portal-stage">
       {module==='home'&&<Dashboard open={openModule}/>}
-      {reportOpened&&<main className={'portal-report'+(module==='report'?'':' is-hidden')}><iframe title="WhatsApp Report Generator" src="./report/index.html"/></main>}
+      {reportOpened&&<main className={'portal-report'+(module==='report'?'':' is-hidden')}><iframe title="WhatsApp Report Generator" src="./report/index.html?v=20261119-2"/></main>}
       <div className={'shell'+(module==='validation'?'':' is-hidden')}>
         <aside><div className="brand">EXIM<span>VALIDATION</span></div><div className="brand-sub">DOCUMENT CONTROL</div>
           <nav>{[['new','＋','New Validation'],['history','◷','History'],['customers','⚙','Customer Master']].map(([p,i,t])=><button key={p} className={page===p?'active':''} onClick={()=>go(p)}><span>{i}</span>{t}</button>)}</nav>
