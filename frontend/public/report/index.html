@@ -54,9 +54,24 @@
       <p class="hint">Default mengikuti hasil sistem: dokumen Keluar = Customer, dokumen Masuk = Supplier. Dropdown Customer/Supplier hanya mengubah keterangan pada laporan; pengambilan nama pihak dan filter tetap mengikuti pemetaan data otomatis yang sudah ada.</p>
     </section>
     <section class="panel">
+      <h2>3. Pilih dokumen untuk Export Excel</h2>
+      <p class="hint">Daftar mengikuti filter Jenis Dokumen dan Customer/Supplier di atas. Dokumen yang dikecualikan pada bagian pengecualian tidak ditampilkan. Hanya dokumen yang dicentang yang akan masuk ke file Excel.</p>
+      <div class="actions">
+        <button id="selectAllExportBtn" type="button" class="secondary" disabled>Pilih Semua Dokumen Sesuai Filter</button>
+        <button id="clearExportSelectionBtn" type="button" class="secondary" disabled>Batalkan Pilihan</button>
+      </div>
+      <label for="exportSearch">Cari dokumen yang akan diekspor</label>
+      <input id="exportSearch" type="search" placeholder="Cari nomor daftar, nomor aju, atau nama pihak">
+      <div id="exportList" class="export-list empty">Unggah Excel untuk menampilkan dokumen.</div>
+      <p id="exportSelectionStatus" class="hint" aria-live="polite">Belum ada dokumen dipilih.</p>
+      <div class="actions">
+        <button id="exportExcelBtn" type="button" disabled>Export Excel (Dokumen Terpilih)</button>
+      </div>
+    </section>
+    <section class="panel">
       <div class="section-title">
         <div>
-          <h2>3. Pengaturan jalur</h2>
+          <h2>4. Pengaturan jalur</h2>
           <p class="hint">Semua dokumen HIJAU secara default. Centang nomor pendaftaran yang harus menjadi MERAH, atau ketik banyak nomor daftar pada kolom di bawah daftar.</p>
         </div>
         <input id="redSearch" type="search" placeholder="Cari nomor / nama pihak" aria-label="Cari nomor atau nama pihak">
@@ -67,7 +82,7 @@
       <p id="redStatus" class="hint" aria-live="polite">Belum ada nomor daftar jalur merah manual.</p>
     </section>
     <section class="panel">
-      <h2>4. Pengecualian nomor daftar</h2>
+      <h2>5. Pengecualian nomor daftar</h2>
       <p class="hint">Centang nomor daftar yang tidak ingin dimasukkan ke laporan, atau ketik nomor secara manual. Pemilihan ini tidak menghapus data Excel.</p>
       <label for="excludeSearch">Cari nomor daftar / nama pihak</label>
       <input id="excludeSearch" type="search" placeholder="Cari nomor daftar atau nama pihak">
@@ -77,7 +92,7 @@
       <p id="excludeStatus" class="hint" aria-live="polite">Belum ada nomor daftar yang dikecualikan.</p>
     </section>
     <section class="panel">
-      <h2>5. Pratinjau laporan WhatsApp</h2>
+      <h2>6. Pratinjau laporan WhatsApp</h2>
       <div class="actions">
         <button id="generateBtn" disabled>Buat / Perbarui Laporan</button>
         <button id="copyBtn" class="secondary" disabled>Salin Laporan</button>
