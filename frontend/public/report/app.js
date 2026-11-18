@@ -335,7 +335,10 @@ function renderExportList() {
   const q = norm($("exportSearch").value).toLowerCase();
   const list = $("exportList");
   list.innerHTML = "";
-  const items = exportEligibleRecords().filter(r => {
+  const eligibleRecords = exportEligibleRecords();
+  const eligibleIds = new Set(eligibleRecords.map(r => r.recordId));
+  selectedExportIds = new Set([...selectedExportIds].filter(id => eligibleIds.has(id)));
+  const items = eligibleRecords.filter(r => {
     const party = currentPartyMode() === "customer" ? r.customerName : r.supplierName;
     return `${r.regNo} ${party} ${r.aju} ${r.sourceName}`.toLowerCase().includes(q);
   });
@@ -465,6 +468,8 @@ function removeUploadedFile(fileId) {
     $("partyName").innerHTML = '<option value="__ALL__">Semua pihak</option>';
     $("redList").className = "red-list empty"; $("redList").textContent = "Unggah Excel untuk menampilkan daftar dokumen.";
     $("excludeList").className = "exclude-list empty"; $("excludeList").textContent = "Unggah Excel untuk menampilkan nomor daftar.";
+    $("exportList").className = "export-list empty"; $("exportList").textContent = "Unggah Excel untuk menampilkan dokumen.";
+    $("exportSelectionStatus").textContent = "Belum ada dokumen dipilih."; $("exportExcelBtn").disabled = true; $("selectAllExportBtn").disabled = true; $("clearExportSelectionBtn").disabled = true;
     $("output").value = ""; $("fileStatus").textContent = "Semua file telah dihapus.";
   } else {
     setupDocTypes(); refreshAll();
