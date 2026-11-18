@@ -77,10 +77,27 @@
       <p id="excludeStatus" class="hint" aria-live="polite">Belum ada nomor daftar yang dikecualikan.</p>
     </section>
     <section class="panel">
-      <h2>5. Pratinjau laporan WhatsApp</h2>
+      <div class="section-title">
+        <div>
+          <h2>5. Pilih dokumen untuk Copy Data Excel / Export Excel</h2>
+          <p class="hint">Daftar mengikuti filter jenis dokumen, Customer/Supplier, dan pengecualian nomor daftar. Centang dokumen yang ingin dimasukkan ke laporan Excel.</p>
+        </div>
+        <input id="exportSearch" type="search" placeholder="Cari nomor daftar / AJU / pihak" aria-label="Cari dokumen untuk ekspor">
+      </div>
+      <div class="actions">
+        <button id="selectAllExportBtn" type="button" class="secondary" disabled>Pilih Semua Hasil Filter</button>
+        <button id="clearExportSelectionBtn" type="button" class="secondary" disabled>Kosongkan Pilihan</button>
+      </div>
+      <div id="exportList" class="export-list empty">Unggah Excel untuk menampilkan dokumen.</div>
+      <p id="exportSelectionStatus" class="hint" aria-live="polite">0 dokumen dipilih untuk ekspor.</p>
+    </section>
+    <section class="panel">
+      <h2>6. Pratinjau laporan WhatsApp</h2>
       <div class="actions">
         <button id="generateBtn" disabled>Buat / Perbarui Laporan</button>
         <button id="copyBtn" class="secondary" disabled>Salin Laporan</button>
+        <button id="copyExcelBtn" class="secondary" disabled>Copy Data Excel</button>
+        <button id="exportBtn" class="secondary" disabled>Export Excel</button>
       </div>
       <textarea id="output" rows="18" placeholder="Laporan akan tampil di sini..." spellcheck="false"></textarea>
       <p id="outputStatus" class="hint" aria-live="polite"></p>
