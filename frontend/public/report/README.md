@@ -11,7 +11,9 @@
 3. Pastikan koneksi internet tersedia agar library SheetJS dapat dimuat dari CDN.
 4. Pilih file Excel CEISA. File hanya dibaca di browser; jangan unggah file perusahaan ke GitHub.
 5. Pilih jenis dokumen, Customer/Supplier, nama pihak, isi Jenis Barang, dan cek nomor pendaftaran yang perlu dijalur MERAH.
-6. Klik **Buat / Perbarui Laporan**, lalu **Salin Laporan**.
+6. Pada bagian **Pilih dokumen untuk Export Excel**, gunakan filter jenis dokumen dan Customer/Supplier, lalu centang hanya dokumen yang ingin dimasukkan ke file.
+7. Klik **Export Excel (Dokumen Terpilih)** untuk mengunduh format BC IN atau BC OUT sesuai arah dokumen. Data yang dikecualikan tidak akan ikut diekspor.
+8. Klik **Buat / Perbarui Laporan**, lalu **Salin Laporan** untuk laporan WhatsApp.
 
 ## Cara mengunggah ke GitHub Pages
 1. Buka repository GitHub yang akan digunakan.
@@ -25,6 +27,7 @@
 - Kode dokumen 27 dibedakan masuk/keluar memakai ENTITAS kode 3 seperti kesepakatan.
 - Pihak keluar memakai ENTITAS kode 8; pihak masuk memakai kode 9. Mode Customer/Supplier dapat dipilih manual.
 - Semua dokumen default HIJAU; centang nomor daftar untuk mengubahnya menjadi MERAH.
+- Export Excel hanya mengambil dokumen yang dicentang setelah filter jenis dokumen dan pihak diterapkan. File ekspor mengikuti struktur Sheet1 dan sheet pendukung pada contoh BC IN/BC OUT.
 - Jenis barang masih diisi manual karena nama barang pada BARANG bisa berupa uraian panjang dan belum ada aturan kategorisasi yang disepakati.
 - Pastikan hasil nomor pendaftaran, kuantitas, kemasan, segel, dan tujuan transaksi diverifikasi sebelum digunakan.
 - Library SheetJS dimuat dari CDN, sehingga perlu koneksi internet ketika membuka web.
