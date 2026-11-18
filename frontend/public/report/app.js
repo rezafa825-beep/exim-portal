@@ -29,6 +29,7 @@ let uploadedFiles = new Map();
 let fileSequence = 0;
 let redNumbers = new Set();
 let excludedNumbers = new Set();
+let selectedExportIds = new Set();
 function norm(v) { return String(v ?? "").trim(); }
 function key(v) { return norm(v).replace(/\.0$/, ""); }
 function excelDate(v) {
@@ -313,6 +314,126 @@ function renderExcludeList() {
   });
   updateExcludeStatus();
 }
+
+function exportEligibleRecords() {
+  const mode = currentPartyMode();
+  const partyFilter = $("partyName").value;
+  return selectedTypeRecords().filter(r => {
+    const party = mode === "customer" ? r.customerName : r.supplierName;
+    return party && (partyFilter === "__ALL__" || party === partyFilter) && !isExcluded(r);
+  });
+}
+function updateExportSelectionStatus() {
+  const eligible = exportEligibleRecords();
+  const selected = eligible.filter(r => selectedExportIds.has(r.recordId));
+  $("exportSelectionStatus").textContent = `${selected.length} dari ${eligible.length} dokumen terpilih untuk diekspor.`;
+  $("exportExcelBtn").disabled = selected.length === 0;
+  $("selectAllExportBtn").disabled = eligible.length === 0;
+  $("clearExportSelectionBtn").disabled = selected.length === 0;
+}
+function renderExportList() {
+  const q = norm($("exportSearch").value).toLowerCase();
+  const list = $("exportList");
+  list.innerHTML = "";
+  const items = exportEligibleRecords().filter(r => {
+    const party = currentPartyMode() === "customer" ? r.customerName : r.supplierName;
+    return `${r.regNo} ${party} ${r.aju} ${r.sourceName}`.toLowerCase().includes(q);
+  });
+  if (!items.length) {
+    list.className = "export-list empty";
+    list.textContent = "Tidak ada dokumen sesuai filter. Periksa jenis dokumen, pihak, atau pengecualian nomor daftar.";
+    updateExportSelectionStatus();
+    return;
+  }
+  list.className = "export-list";
+  items.forEach(r => {
+    const party = currentPartyMode() === "customer" ? r.customerName : r.supplierName;
+    const label = document.createElement("label");
+    label.className = "export-row";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = selectedExportIds.has(r.recordId);
+    cb.addEventListener("change", () => {
+      if (cb.checked) selectedExportIds.add(r.recordId);
+      else selectedExportIds.delete(r.recordId);
+      updateExportSelectionStatus();
+    });
+    const meta = document.createElement("span");
+    meta.className = "meta";
+    const title = document.createElement("strong");
+    title.textContent = r.regNo;
+    const small = document.createElement("small");
+    small.textContent = `${r.aju} · ${party} · ${dateText(r.regDate) || "Tanggal daftar kosong"} · ${r.sourceName}`;
+    meta.append(title, small);
+    label.append(cb, meta);
+    list.append(label);
+  });
+  updateExportSelectionStatus();
+}
+function getAjuDocumentDate(aju) {
+  const match = key(aju).match(/(20\\d{6})/);
+  if (!match) return null;
+  const value = match[1];
+  const year = Number(value.slice(0, 4));
+  const month = Number(value.slice(4, 6));
+  const day = Number(value.slice(6, 8));
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
+}
+function exportSelectedExcel() {
+  const type = DOC_TYPES.find(x => x.value === $("docType").value);
+  if (!type) return;
+  const chosen = exportEligibleRecords().filter(r => selectedExportIds.has(r.recordId));
+  if (!chosen.length) {
+    $("exportSelectionStatus").textContent = "Pilih minimal satu dokumen yang akan diekspor.";
+    return;
+  }
+  const isInbound = type.direction === "in";
+  const movementHeader = isInbound ? "TANGGAL MASUK" : "TANGGAL KELUAR";
+  const headers = ["JENIS DOKUMEN", "NO PENGAJUAN", "NO PENDAFTARAN", "TANGGAL DOKUMEN", movementHeader, "KAWASAN BERIKAT"];
+  const rows = chosen.map(r => {
+    const docDate = getAjuDocumentDate(r.aju);
+    const movementDate = excelDate(r.regDate);
+    const party = currentPartyMode() === "customer" ? r.customerName : r.supplierName;
+    const dateValue = date => {
+      if (!date) return "";
+      return isInbound
+        ? `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`
+        : date;
+    };
+    return [Number(r.docCode) || r.docCode, String(r.aju || ""), String(r.regNo || ""), dateValue(docDate), dateValue(movementDate), party || ""];
+  });
+  const wb = XLSX.utils.book_new();
+  const mainWs = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  mainWs["!cols"] = [{wch:18},{wch:36},{wch:22},{wch:20},{wch:20},{wch:42}];
+  mainWs["!autofilter"] = {ref:`A1:F${chosen.length + 1}`};
+  mainWs["!freeze"] = {xSplit:0,ySplit:1,topLeftCell:"A2",activePane:"bottomLeft",state:"frozen"};
+  XLSX.utils.book_append_sheet(wb, mainWs, "Sheet1");
+  if (isInbound) {
+    const ajuWs = XLSX.utils.aoa_to_sheet([["DATA"], ...chosen.map(r => [String(r.aju || "")])]);
+    ajuWs["!cols"] = [{wch:36}];
+    XLSX.utils.book_append_sheet(wb, ajuWs, "Sheet2");
+    const detailWs = XLSX.utils.aoa_to_sheet(chosen.map(r => {
+      const docDate = getAjuDocumentDate(r.aju);
+      const movementDate = excelDate(r.regDate);
+      const party = currentPartyMode() === "customer" ? r.customerName : r.supplierName;
+      return [String(r.aju || ""), String(r.regNo || ""), docDate || "", movementDate || "", party || ""];
+    }));
+    detailWs["!cols"] = [{wch:36},{wch:20},{wch:18},{wch:18},{wch:42}];
+    XLSX.utils.book_append_sheet(wb, detailWs, "Sheet3");
+    wb.Workbook = {Sheets:[{Hidden:0},{Hidden:1},{Hidden:1}]};
+  } else {
+    const helperWs = XLSX.utils.aoa_to_sheet(chosen.map(r => [String(r.aju || ""), String(r.regNo || "")]));
+    helperWs["!cols"] = [{wch:36},{wch:20}];
+    XLSX.utils.book_append_sheet(wb, helperWs, "Sheet2");
+    wb.Workbook = {Sheets:[{Hidden:0},{Hidden:0}]};
+  }
+  const today = dateInputToday().replaceAll("-", "");
+  const fileName = `BC ${isInbound ? "IN" : "OUT"} - ${today}.xlsx`;
+  XLSX.writeFile(wb, fileName, {compression:true});
+  $("exportSelectionStatus").textContent = `Berhasil menyiapkan ${chosen.length} dokumen. File: ${fileName}`;
+}
+
 function renderUploadedFiles() {
   const box = $("uploadedFiles"); box.innerHTML = "";
   if (!uploadedFiles.size) {
@@ -449,6 +570,7 @@ function refreshAll() {
   refreshPartyOptions();
   renderRedList();
   renderExcludeList();
+  renderExportList();
   updateRedStatus();
   const hasRecords = records.length > 0;
   $("generateBtn").disabled = !hasRecords;
@@ -533,6 +655,16 @@ $("redSearch").addEventListener("input",renderRedList);
 $("excludeSearch").addEventListener("input",renderExcludeList);
 $("redManual").addEventListener("input",()=>{updateRedStatus(); if(records.length){renderRedList(); $("output").value=buildReport();}});
 $("excludeManual").addEventListener("input",()=>{updateExcludeStatus(); if(records.length)$("output").value=buildReport();});
+$("exportSearch").addEventListener("input",renderExportList);
+$("selectAllExportBtn").addEventListener("click",()=>{
+  exportEligibleRecords().forEach(r=>selectedExportIds.add(r.recordId));
+  renderExportList();
+});
+$("clearExportSelectionBtn").addEventListener("click",()=>{
+  selectedExportIds.clear();
+  renderExportList();
+});
+$("exportExcelBtn").addEventListener("click",exportSelectedExcel);
 $("generateBtn").addEventListener("click",()=>{$("output").value=buildReport();$("outputStatus").textContent="Laporan diperbarui. Periksa isi sebelum dikirim.";});
 $("copyBtn").addEventListener("click",async()=>{
   try { await navigator.clipboard.writeText($("output").value); $("outputStatus").textContent="Laporan berhasil disalin."; }
