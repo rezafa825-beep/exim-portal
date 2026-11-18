@@ -304,7 +304,7 @@ function renderExcludeList() {
     const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=excludedNumbers.has(regNo);
     cb.addEventListener("change",()=>{
       if(cb.checked) excludedNumbers.add(regNo); else excludedNumbers.delete(regNo);
-      renderExcludeList(); updateOutput();
+      renderExcludeList(); renderExportList(); updateOutput();
     });
     const meta=document.createElement("span"); meta.className="meta";
     const title=document.createElement("strong"); title.textContent=regNo;
@@ -371,7 +371,7 @@ function renderExportList() {
   updateExportSelectionStatus();
 }
 function getAjuDocumentDate(aju) {
-  const match = key(aju).match(/(20\\d{6})/);
+  const match = key(aju).match(/(20\d{6})/);
   if (!match) return null;
   const value = match[1];
   const year = Number(value.slice(0, 4));
@@ -456,6 +456,7 @@ function removeUploadedFile(fileId) {
   if (!item) return;
   item.allRecords.forEach(r => redNumbers.delete(r.recordId));
   uploadedFiles.delete(fileId);
+  selectedExportIds.clear();
   rebuildRecords();
   if (!records.length) {
     $("docType").disabled = true; $("partyMode").disabled = true; $("partyName").disabled = true;
@@ -633,28 +634,31 @@ $("excelFile").addEventListener("change", async (event) => {
   input.value = ""; // izinkan memilih ulang nama file yang sama bila diperlukan
 });
 $("clearFilesBtn").addEventListener("click",()=>{
-  uploadedFiles.clear(); records=[]; redNumbers.clear(); excludedNumbers.clear();
+  uploadedFiles.clear(); records=[]; redNumbers.clear(); excludedNumbers.clear(); selectedExportIds.clear();
   $("excludeManual").value=""; $("redManual").value=""; $("docType").disabled=true; $("partyMode").disabled=true; $("partyName").disabled=true;
   $("generateBtn").disabled=true; $("copyBtn").disabled=true;
   $("docType").innerHTML='<option value="">Unggah Excel terlebih dahulu</option>';
   $("partyName").innerHTML='<option value="__ALL__">Semua pihak</option>';
   $("redList").className="red-list empty"; $("redList").textContent="Unggah Excel untuk menampilkan daftar dokumen.";
   $("excludeList").className="exclude-list empty"; $("excludeList").textContent="Unggah Excel untuk menampilkan nomor daftar.";
+  $("exportList").className="export-list empty"; $("exportList").textContent="Unggah Excel untuk menampilkan dokumen.";
+  $("exportSelectionStatus").textContent="Belum ada dokumen dipilih."; $("exportExcelBtn").disabled=true; $("selectAllExportBtn").disabled=true; $("clearExportSelectionBtn").disabled=true;
   $("output").value=""; $("fileStatus").textContent="Semua file telah dihapus.";
   renderUploadedFiles(); updateExcludeStatus(); updateRedStatus();
 });
 $("docType").addEventListener("change",()=>{
+  selectedExportIds.clear();
   $("dateLabel").firstChild.textContent = `${headerDateLabel($("docType").value)} `;
   refreshAll();
 });
-$("partyMode").addEventListener("change",refreshAll);
-$("partyName").addEventListener("change",refreshAll);
+$("partyMode").addEventListener("change",()=>{selectedExportIds.clear(); refreshAll();});
+$("partyName").addEventListener("change",()=>{selectedExportIds.clear(); refreshAll();});
 $("goodsType").addEventListener("input",()=>{if(records.length)$("output").value=buildReport();});
 $("movementDate").addEventListener("change",()=>{if(records.length)$("output").value=buildReport();});
 $("redSearch").addEventListener("input",renderRedList);
 $("excludeSearch").addEventListener("input",renderExcludeList);
 $("redManual").addEventListener("input",()=>{updateRedStatus(); if(records.length){renderRedList(); $("output").value=buildReport();}});
-$("excludeManual").addEventListener("input",()=>{updateExcludeStatus(); if(records.length)$("output").value=buildReport();});
+$("excludeManual").addEventListener("input",()=>{updateExcludeStatus(); if(records.length){renderExportList(); $("output").value=buildReport();}});
 $("exportSearch").addEventListener("input",renderExportList);
 $("selectAllExportBtn").addEventListener("click",()=>{
   exportEligibleRecords().forEach(r=>selectedExportIds.add(r.recordId));
