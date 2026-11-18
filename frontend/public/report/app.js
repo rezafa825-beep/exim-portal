@@ -532,12 +532,12 @@ async function copyExcelReport() {
   const rows = getExcelReportRows();
   if (!rows.length) return;
   const headers = ["Jenis/Kode Dokumen","Nomor AJU","Nomor Daftar","Tanggal Daftar","Tanggal Keluar","Nama Customer"];
-  const safe = value => String(value ?? "").replace(/\\t/g," ").replace(/\\r?\\n/g," ");
+  const safe = value => String(value ?? "").replace(/\t/g," ").replace(/\r?\n/g," ");
   const lines = [headers, ...rows.map(r => headers.map(h => r[h]))];
   const tsv = lines.map((line, i) => line.map((v, col) => {
     const value = safe(v);
     return i > 0 && (col === 1 || col === 2) ? `'${value}` : value;
-  }).join("\\t")).join("\\n");
+  }).join("\t")).join("\n");
   try {
     await navigator.clipboard.writeText(tsv);
     $("outputStatus").textContent = "Data Excel berhasil disalin. Tempelkan ke Excel mulai dari sel A1.";
