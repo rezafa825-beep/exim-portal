@@ -15,13 +15,6 @@ const findHeader = (rows, required, max = 50) => {
   return -1;
 };
 const findColumn = (header, key) => header.findIndex(v => norm(v) === key || norm(v).includes(key));
-const asKey = v => clean(v).toUpperCase().replace(/\s+/g, '');
-
-function parseInvoiceWorkbook(file) {
-  const wb = XLSX.read(file.arrayBuffer ? undefined : undefined);
-  return wb;
-}
-
 export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles) {
   if (!ceisaFiles?.length) throw new Error('File CEISA belum tersedia.');
   if (!invoiceFiles?.length) throw new Error('Pilih minimal satu file Excel Invoice Adonia.');
