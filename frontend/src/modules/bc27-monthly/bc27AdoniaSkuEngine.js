@@ -47,7 +47,7 @@ function formatCeisaDate(value) {
 function mergeSpecification(existingValue, skuValue) {
   const existing = clean(existingValue);
   const sku = clean(skuValue);
-  if (!sku) return existing === '-' ? '' : existing;
+  if (!sku) return existing;
   if (!existing || existing === '-') return sku;
   if (norm(existing).includes(norm(sku))) return existing;
   return existing + ' | ' + sku;
