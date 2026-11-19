@@ -187,6 +187,7 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
       }
 
       const rows = [];
+      let changed = 0;
       for (let rowIndex = 1; rowIndex < goodsRows.length; rowIndex++) {
         const row = goodsRows[rowIndex] || [];
         const aju = clean(row[0]);
@@ -223,9 +224,8 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
 
         const existingSpecification = clean(row[8]);
         const finalSpecification = mergeSpecification(existingSpecification, sku);
-        if (status === 'MATCHED' && finalSpecification !== existingSpecification && existingSpecification && existingSpecification !== '-' && norm(existingSpecification).includes(norm(sku))) {
-          itemSkipped++;
-        }
+        if (sku && finalSpecification !== existingSpecification) changed++;
+        else if (sku) itemSkipped++;
 
         rows.push({
           'Nomor AJU': aju,
@@ -265,8 +265,9 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
       outputs.push({
         name: file.name.replace(/\\.xlsx$/i, '') + '_ADONIA_BARANG.xlsx',
         data: XLSX.write(outputWorkbook, { bookType: 'xlsx', type: 'array' }),
-        changed: itemMatched,
-        rows: rows.length
+        changed,
+        rows: rows.length,
+        rowsPreview: rows
       });
       outputRows += rows.length;
     } catch (error) {
