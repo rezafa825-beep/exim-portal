@@ -75,3 +75,15 @@
 
 /* BC27 mapping controls */
 .bc27-mapping-mode{display:grid;gap:5px;color:#52616d;font-size:10px;font-weight:800}.bc27-mapping-mode select{max-width:300px;padding:8px;border:1px solid #d5dee6;border-radius:7px;background:#fff}.bc27-manual-mapping{display:grid;gap:8px;padding:11px;border:1px solid #e2e8ef;border-radius:8px;background:#fff}.bc27-manual-mapping>b{font-size:11px;color:#315c84}.bc27-manual-mapping>div{display:grid;gap:6px}.bc27-manual-mapping input{width:100%;min-width:0;padding:8px;border:1px solid #d5dee6;border-radius:6px;font:inherit;font-size:11px}
+
+
+/* BC27 Adonia invoice SKU workflow */
+.bc27-sku-info{margin:14px 0 18px;padding:16px 18px;border:1px solid #d9e3f0;border-radius:12px;background:#f7faff;color:#25364a}
+.bc27-sku-info>b{display:block;margin-bottom:8px}
+.bc27-sku-info ol{margin:8px 0 0;padding-left:22px;display:grid;gap:6px}
+.bc27-invoice-drop{margin-top:12px}
+.bc27-sku-stats{margin-top:16px}
+.bc27-sku-downloads{display:grid;gap:10px;margin-top:18px;padding-top:16px;border-top:1px solid #e4e9f0}
+.bc27-sku-downloads>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid #e4e9f0;border-radius:10px}
+.bc27-sku-downloads>div span{overflow-wrap:anywhere}
+@media(max-width:640px){.bc27-sku-downloads>div{align-items:flex-start;flex-direction:column}.bc27-sku-downloads>div button{width:100%}}
