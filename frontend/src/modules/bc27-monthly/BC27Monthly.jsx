@@ -64,7 +64,7 @@ export default function BC27Monthly() {
   const processAdoniaSku = async () => {
     setSkuBusy(true); setSkuError(''); setSkuResult(null);
     try {
-      const parsed = await buildAdoniaSkuOutputs(files, invoiceFiles);
+      const parsed = await buildAdoniaSkuOutputs(files, invoiceFiles, period);
       setSkuResult(parsed);
     } catch (e) {
       setSkuError(e.message || 'Gagal mencocokkan SKU Invoice dengan CEISA.');
