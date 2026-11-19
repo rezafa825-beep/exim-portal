@@ -228,6 +228,7 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
         else if (sku) itemSkipped++;
 
         rows.push({
+          __lineNo: Number(lineNo) || 0,
           'Nomor AJU': aju,
           'Nomor Daftar': ajuInfo.nomorDaftar,
           'Tanggal Daftar': ajuInfo.tanggalDaftar,
@@ -252,12 +253,12 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
 
       rows.sort((a, b) =>
         a['Nomor AJU'].localeCompare(b['Nomor AJU'], 'en', { numeric: true }) ||
-        String(a['Nomor Daftar']).localeCompare(String(b['Nomor Daftar']), 'en', { numeric: true }) ||
-        a['Kode Barang'].localeCompare(b['Kode Barang'], 'en', { numeric: true })
+        a.__lineNo - b.__lineNo
       );
+      const outputRowsForFile = rows.map(({ __lineNo, ...row }) => row);
 
       const outputWorkbook = XLSX.utils.book_new();
-      const outputSheet = XLSX.utils.json_to_sheet(rows, { header: ADONIA_OUTPUT_HEADERS });
+      const outputSheet = XLSX.utils.json_to_sheet(outputRowsForFile, { header: ADONIA_OUTPUT_HEADERS });
       outputSheet['!cols'] = [24, 16, 16, 22, 48, 42, 16, 16].map(wch => ({ wch }));
       if (outputSheet['!ref']) outputSheet['!autofilter'] = { ref: outputSheet['!ref'] };
       XLSX.utils.book_append_sheet(outputWorkbook, outputSheet, 'BARANG');
@@ -266,10 +267,10 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
         name: file.name.replace(/\.xlsx$/i, '') + '_ADONIA_BARANG.xlsx',
         data: XLSX.write(outputWorkbook, { bookType: 'xlsx', type: 'array' }),
         changed,
-        rows: rows.length,
-        rowsPreview: rows
+        rows: outputRowsForFile.length,
+        rowsPreview: outputRowsForFile
       });
-      outputRows += rows.length;
+      outputRows += outputRowsForFile.length;
     } catch (error) {
       issues.push(file.name + ': ' + (error.message || 'gagal diproses.'));
     }
