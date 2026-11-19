@@ -75,7 +75,7 @@ export default function BC27Monthly() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url; anchor.download = output.name; anchor.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   const exportExcel = () => {
     if (!result) return;
@@ -141,7 +141,7 @@ export default function BC27Monthly() {
       </section>
 
       <section className="bc27-card">
-        <div className="bc27-section-head"><div><h2>5. DATABASE dan OUTPUT</h2><p>DATABASE menyimpan rincian per barang per AJU. OUTPUT menjumlahkan transaksi berdasarkan identitas barang, Jenis Satuan, dan Kategori Barang.</p></div><span className="bc27-step">04</span></div>
+        <div className="bc27-section-head"><div><h2>5. DATABASE dan OUTPUT</h2><p>DATABASE menyimpan rincian per barang per AJU. OUTPUT menjumlahkan transaksi berdasarkan identitas barang, Jenis Satuan, dan Kategori Barang.</p></div><span className="bc27-step">05</span></div>
         <div className="bc27-tabs"><button className={tab==='database'?'active':''} onClick={()=>setTab('database')}>DATABASE ({result.database.length.toLocaleString('id-ID')})</button><button className={tab==='output'?'active':''} onClick={()=>setTab('output')}>OUTPUT ({result.output.length.toLocaleString('id-ID')})</button></div>
         {previewRows.length===0?<div className="bc27-empty">Tidak ada data untuk periode yang dipilih.</div>:<>
           <div className="bc27-table-wrap"><table className="bc27-table"><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{shownRows.map((row,i)=><tr key={`${tab}-${i}`}>{headers.map(h=><td key={h} className={h==='Uraian Barang'||h==='Entitas Perusahaan Tujuan'?'wide-cell':''}>{h==='Jumlah Satuan'?fmt(row[h]):row[h]??''}</td>)}</tr>)}</tbody></table></div>
@@ -153,7 +153,7 @@ export default function BC27Monthly() {
 
 
       {result&&<section className="bc27-card bc27-crosscheck">
-        <div className="bc27-section-head"><div><h2>6. Crosscheck CEISA vs IT Inventory</h2><p>Bagian ini tersedia setelah CEISA berhasil diproses. Hanya kategori 1 · Hasil Produksi yang dibandingkan.</p></div><span className="bc27-step">05</span></div>
+        <div className="bc27-section-head"><div><h2>6. Crosscheck CEISA vs IT Inventory</h2><p>Bagian ini tersedia setelah CEISA berhasil diproses. Hanya kategori 1 · Hasil Produksi yang dibandingkan.</p></div><span className="bc27-step">06</span></div>
         <div className="bc27-cross-flow">
           <div className="bc27-cross-step"><b>A · Master Mapping ERP tunggal</b><p>Gunakan satu file master terbaru dengan kolom CUSTOMER, NO STYLE, dan ITEM CODE CHINLI. Setelah dibaca, mapping disimpan di browser ini sehingga tetap tersedia saat halaman dibuka kembali. Mapping diterapkan sesuai customer, bukan lintas customer.</p>
             <label className="bc27-file-input">Pilih / ganti Master Mapping ERP (.xlsx)<input type="file" accept=".xlsx" onChange={e=>{setErpFile(e.target.files?.[0]||null);setCrosscheck(null);setCrossError('')}}/></label>
