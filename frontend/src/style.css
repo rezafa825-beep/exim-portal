@@ -75,3 +75,28 @@
 
 /* BC27 mapping controls */
 .bc27-mapping-mode{display:grid;gap:5px;color:#52616d;font-size:10px;font-weight:800}.bc27-mapping-mode select{max-width:300px;padding:8px;border:1px solid #d5dee6;border-radius:7px;background:#fff}.bc27-manual-mapping{display:grid;gap:8px;padding:11px;border:1px solid #e2e8ef;border-radius:8px;background:#fff}.bc27-manual-mapping>b{font-size:11px;color:#315c84}.bc27-manual-mapping>div{display:grid;gap:6px}.bc27-manual-mapping input{width:100%;min-width:0;padding:8px;border:1px solid #d5dee6;border-radius:6px;font:inherit;font-size:11px}
+
+
+/* BC27 Adonia invoice SKU workflow */
+.bc27-sku-info{margin:14px 0 18px;padding:16px 18px;border:1px solid #d9e3f0;border-radius:12px;background:#f7faff;color:#25364a}
+.bc27-sku-info>b{display:block;margin-bottom:8px}
+.bc27-sku-info ol{margin:8px 0 0;padding-left:22px;display:grid;gap:6px}
+.bc27-invoice-drop{margin-top:12px}
+.bc27-sku-stats{margin-top:16px}
+.bc27-sku-downloads{display:grid;gap:10px;margin-top:18px;padding-top:16px;border-top:1px solid #e4e9f0}
+.bc27-sku-downloads>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid #e4e9f0;border-radius:10px}
+.bc27-sku-downloads>div span{overflow-wrap:anywhere}
+@media(max-width:640px){.bc27-sku-downloads>div{align-items:flex-start;flex-direction:column}.bc27-sku-downloads>div button{width:100%}}
+
+
+/* BC27 workflow selection */
+.bc27-workflow-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.bc27-workflow-options>button{display:grid;grid-template-columns:34px 1fr;gap:7px 11px;align-content:start;padding:17px;border:1px solid #dfe6ee;border-radius:11px;background:#fbfcfd;color:#34495b;text-align:left;cursor:pointer;font:inherit;transition:border-color .15s,background .15s,box-shadow .15s}
+.bc27-workflow-options>button:hover,.bc27-workflow-options>button.selected{border-color:#315c84;background:#f2f7fc;box-shadow:0 3px 12px #17365d12}
+.bc27-option-number{grid-row:span 3;display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:#e5edf5;color:#315c84;font-weight:900}
+.bc27-workflow-options>button>b{font-size:13px;color:#17365d}
+.bc27-workflow-options>button>small{font-size:11px;line-height:1.6;color:#71808d}
+.bc27-option-action{font-size:10px;font-weight:850;color:#315c84;margin-top:4px}
+.bc27-workflow-current{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:13px;padding:10px 12px;border-radius:8px;background:#f5f7fa;color:#52616d;font-size:11px}
+.bc27-workflow-current .bc27-secondary{margin-left:auto;padding:8px 11px}
+@media(max-width:700px){.bc27-workflow-options{grid-template-columns:1fr}.bc27-workflow-current{align-items:flex-start;flex-direction:column}.bc27-workflow-current .bc27-secondary{margin-left:0;width:100%}}
