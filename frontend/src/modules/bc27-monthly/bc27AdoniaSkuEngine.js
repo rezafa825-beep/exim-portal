@@ -10,11 +10,11 @@ const rowsOf = (wb, name, fileName) => {
 const findHeader = (rows, required, max = 50) => {
   for (let i = 0; i < Math.min(rows.length, max); i++) {
     const h = (rows[i] || []).map(norm);
-    if (required.every(key => h.some(v => v === key || v.includes(key)))) return i;
+    if (required.every(key => h.some(v => v === key))) return i;
   }
   return -1;
 };
-const findColumn = (header, key) => header.findIndex(v => norm(v) === key || norm(v).includes(key));
+const findColumn = (header, key) => header.findIndex(v => norm(v) === key);
 export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
   if (!ceisaFiles?.length) throw new Error('File CEISA belum tersedia.');
   if (!invoiceFiles?.length) throw new Error('Pilih minimal satu file Excel Invoice Adonia.');
