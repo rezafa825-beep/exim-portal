@@ -1,65 +1,127 @@
 import * as XLSX from 'xlsx';
 
-const clean = v => String(v ?? '').replace(/\u00a0/g, ' ').replace(/[\r\n]+/g, ' ').trim();
-const norm = v => clean(v).toUpperCase().replace(/[^A-Z0-9]/g, '');
-const rowsOf = (wb, name, fileName) => {
-  const ws = wb.Sheets[name];
-  if (!ws) throw new Error(fileName + ': sheet ' + name + ' tidak ditemukan.');
-  return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true, blankrows: true });
+export const ADONIA_OUTPUT_HEADERS = [
+  'Nomor AJU',
+  'Nomor Daftar',
+  'Tanggal Daftar',
+  'Kode Barang',
+  'Uraian Barang',
+  'Spesifikasi Lain',
+  'Jenis Satuan',
+  'Kuantiti'
+];
+
+const clean = value => String(value ?? '').replace(/\\u00a0/g, ' ').replace(/[\\r\\n]+/g, ' ').trim();
+const norm = value => clean(value).toUpperCase().replace(/[^A-Z0-9]/g, '');
+const rowsOf = (workbook, name, fileName) => {
+  const sheet = workbook.Sheets[name];
+  if (!sheet) throw new Error(fileName + ': sheet ' + name + ' tidak ditemukan.');
+  return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true, blankrows: true });
 };
-const findHeader = (rows, required, max = 50) => {
+const findHeader = (rows, required, max = 60) => {
   for (let i = 0; i < Math.min(rows.length, max); i++) {
-    const h = (rows[i] || []).map(norm);
-    if (required.every(key => h.some(v => v === key))) return i;
+    const header = (rows[i] || []).map(norm);
+    if (required.every(key => header.includes(key))) return i;
   }
   return -1;
 };
-const findColumn = (header, key) => header.findIndex(v => norm(v) === key);
+const findColumn = (header, key) => header.findIndex(value => norm(value) === key);
+
+function formatCeisaDate(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.getFullYear() + '-' + String(value.getMonth() + 1).padStart(2, '0') + '-' + String(value.getDate()).padStart(2, '0');
+  }
+  if (typeof value === 'number') {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed) return parsed.y + '-' + String(parsed.m).padStart(2, '0') + '-' + String(parsed.d).padStart(2, '0');
+  }
+  const raw = clean(value);
+  if (!raw) return '';
+  let match = raw.match(/^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})/);
+  if (match) return match[1] + '-' + String(match[2]).padStart(2, '0') + '-' + String(match[3]).padStart(2, '0');
+  match = raw.match(/^(\\d{1,2})[-/](\\d{1,2})[-/](\\d{4})$/);
+  if (match) return match[3] + '-' + String(match[2]).padStart(2, '0') + '-' + String(match[1]).padStart(2, '0');
+  return raw;
+}
+
+function mergeSpecification(existingValue, skuValue) {
+  const existing = clean(existingValue);
+  const sku = clean(skuValue);
+  if (!sku) return existing === '-' ? '' : existing;
+  if (!existing || existing === '-') return sku;
+  if (norm(existing).includes(norm(sku))) return existing;
+  return existing + ' | ' + sku;
+}
+
+function numberValue(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const raw = clean(value).replace(/\\s/g, '');
+  if (!raw) return 0;
+  const parsed = Number(raw.replace(/,/g, ''));
+  return Number.isFinite(parsed) ? parsed : value;
+}
+
 export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
   if (!ceisaFiles?.length) throw new Error('File CEISA belum tersedia.');
   if (!invoiceFiles?.length) throw new Error('Pilih minimal satu file Excel Invoice Adonia.');
+
+  // Index Invoice berdasarkan Nomor Invoice + Nomor Urut Item.
   const invoiceItems = new Map();
   const invoiceErrors = [];
   let invoiceSheetsRead = 0;
 
   for (const file of invoiceFiles) {
-    if (!/\.xlsx?$/i.test(file.name)) { invoiceErrors.push(file.name + ': format tidak didukung.'); continue; }
+    if (!/\\.xlsx?$/i.test(file.name)) {
+      invoiceErrors.push(file.name + ': format tidak didukung.');
+      continue;
+    }
     try {
-      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
-      for (const sheetName of wb.SheetNames) {
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: '', raw: true, blankrows: false });
-        const hi = findHeader(rows, ['NO', 'SKU', 'MATERIALCODE'], 60);
-        if (hi < 0) continue;
-        const header = (rows[hi] || []).map(norm);
-        const noCol = findColumn(header, 'NO');
-        const skuCol = findColumn(header, 'SKU');
-        const materialCol = findColumn(header, 'MATERIALCODE');
-        if ([noCol, skuCol, materialCol].some(x => x < 0)) continue;
-        const topText = rows.slice(0, hi + 1).flat().map(clean).join(' | ');
-        const invMatch = topText.match(/INVOICE\s*NO\s*:?\s*([A-Z0-9][A-Z0-9./_-]*)/i);
-        const shipToAdonia = /ADONIA/i.test(topText);
-        if (!invMatch || !shipToAdonia) continue;
-        const invoiceNo = clean(invMatch[1]).toUpperCase();
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+      for (const sheetName of workbook.SheetNames) {
+        const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '', raw: true, blankrows: false });
+        const headerIndex = findHeader(rows, ['NO', 'SKU', 'MATERIALCODE']);
+        if (headerIndex < 0) continue;
+        const header = (rows[headerIndex] || []).map(norm);
+        const noColumn = findColumn(header, 'NO');
+        const skuColumn = findColumn(header, 'SKU');
+        const materialColumn = findColumn(header, 'MATERIALCODE');
+        if ([noColumn, skuColumn, materialColumn].some(index => index < 0)) continue;
+
+        const topText = rows.slice(0, headerIndex + 1).flat().map(clean).join(' | ');
+        const invoiceMatch = topText.match(/INVOICE\\s*NO\\s*:?\\s*([A-Z0-9][A-Z0-9./_-]*)/i);
+        const isAdoniaInvoice = /ADONIA/i.test(topText);
+        if (!invoiceMatch || !isAdoniaInvoice) continue;
+
+        const invoiceNo = clean(invoiceMatch[1]).toUpperCase();
         invoiceSheetsRead++;
-        for (const row of rows.slice(hi + 1)) {
-          const lineNo = clean(row[noCol]);
-          const sku = clean(row[skuCol]);
-          const materialCode = clean(row[materialCol]);
-          if (!/^\d+$/.test(lineNo) || !sku || !materialCode) continue;
+        for (const row of rows.slice(headerIndex + 1)) {
+          const lineNo = clean(row[noColumn]);
+          const sku = clean(row[skuColumn]);
+          const materialCode = clean(row[materialColumn]);
+          if (!/^\\d+$/.test(lineNo) || !sku || !materialCode) continue;
           const key = invoiceNo + '|' + String(Number(lineNo));
-          const item = { invoiceNo, lineNo: String(Number(lineNo)), sku, materialCode, materialKey: norm(materialCode), source: file.name, sheet: sheetName };
+          const item = {
+            invoiceNo,
+            lineNo: String(Number(lineNo)),
+            sku,
+            materialKey: norm(materialCode),
+            source: file.name,
+            sheet: sheetName
+          };
           if (!invoiceItems.has(key)) invoiceItems.set(key, []);
           const bucket = invoiceItems.get(key);
-          const duplicate = bucket.some(existing => existing.materialKey === item.materialKey && norm(existing.sku) === norm(item.sku));
-          if (!duplicate) bucket.push(item);
+          if (!bucket.some(existing => existing.materialKey === item.materialKey && norm(existing.sku) === norm(item.sku))) {
+            bucket.push(item);
+          }
         }
       }
-    } catch (e) {
-      invoiceErrors.push(file.name + ': ' + (e.message || 'gagal dibaca.'));
+    } catch (error) {
+      invoiceErrors.push(file.name + ': ' + (error.message || 'gagal dibaca.'));
     }
   }
+
   if (!invoiceSheetsRead || !invoiceItems.size) {
-    throw new Error(invoiceErrors.join('\n') || 'Tidak ditemukan sheet Invoice Adonia dengan kolom NO, SKU, MATERIAL CODE dan nomor invoice.');
+    throw new Error(invoiceErrors.join('\\n') || 'Tidak ditemukan sheet Invoice Adonia dengan kolom NO, SKU, MATERIAL CODE dan nomor invoice.');
   }
 
   const outputs = [];
@@ -69,15 +131,16 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
   let itemMatched = 0;
   let itemUnmatched = 0;
   let itemSkipped = 0;
+  let outputRows = 0;
 
   for (const file of ceisaFiles) {
     try {
-      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true, cellStyles: true });
-      const headerRows = rowsOf(wb, 'HEADER', file.name);
-      const entityRows = rowsOf(wb, 'ENTITAS', file.name);
-      const documentRows = rowsOf(wb, 'DOKUMEN', file.name);
-      const goodsRows = rowsOf(wb, 'BARANG', file.name);
-      const headerData = headerRows.slice(1);
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+      const headerRows = rowsOf(workbook, 'HEADER', file.name);
+      const entityRows = rowsOf(workbook, 'ENTITAS', file.name);
+      const documentRows = rowsOf(workbook, 'DOKUMEN', file.name);
+      const goodsRows = rowsOf(workbook, 'BARANG', file.name);
+
       const entitiesByAju = new Map();
       for (const row of entityRows.slice(1)) {
         const aju = clean(row[0]);
@@ -85,110 +148,148 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
         if (!entitiesByAju.has(aju)) entitiesByAju.set(aju, []);
         entitiesByAju.get(aju).push(row);
       }
-      const docsByAju = new Map();
+
+      const documentsByAju = new Map();
       for (const row of documentRows.slice(1)) {
         const aju = clean(row[0]);
         if (!aju) continue;
-        if (!docsByAju.has(aju)) docsByAju.set(aju, []);
-        docsByAju.get(aju).push(row);
+        if (!documentsByAju.has(aju)) documentsByAju.set(aju, []);
+        documentsByAju.get(aju).push(row);
       }
-      const ajuInvoice = new Map();
-      for (const h of headerData) {
-        const aju = clean(h[0]);
-        if (!aju || clean(h[1]) !== '27') continue;
-        const rawDate = h[94];
-        let dateKey = '';
-        if (rawDate instanceof Date && !Number.isNaN(rawDate.getTime())) {
-          dateKey = rawDate.getFullYear() + '-' + String(rawDate.getMonth() + 1).padStart(2, '0');
-        } else {
-          const dateMatch = clean(rawDate).match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-          if (dateMatch) dateKey = dateMatch[1] + '-' + String(dateMatch[2]).padStart(2, '0');
-        }
+
+      const adoniaByAju = new Map();
+      for (const header of headerRows.slice(1)) {
+        const aju = clean(header[0]);
+        if (!aju || clean(header[1]) !== '27') continue;
+
+        const tanggalDaftar = formatCeisaDate(header[94]);
+        const dateMatch = tanggalDaftar.match(/^(\\d{4})-(\\d{2})-/);
+        const dateKey = dateMatch ? dateMatch[1] + '-' + dateMatch[2] : '';
         if (period?.year && period?.month && dateKey !== String(period.year) + '-' + String(period.month).padStart(2, '0')) continue;
+
         const entities = entitiesByAju.get(aju) || [];
-        const chinli = entities.some(r => clean(r[2]) === '3' && norm(r[5]) === 'CHINLIPLASTICMATERIALSINDONESIA');
-        const adonia = entities.some(r => clean(r[2]) === '8' && /ADONIA/i.test(clean(r[5])));
+        const chinli = entities.some(row => clean(row[2]) === '3' && norm(row[5]) === 'CHINLIPLASTICMATERIALSINDONESIA');
+        const adonia = entities.some(row => clean(row[2]) === '8' && /ADONIA/i.test(clean(row[5])));
         if (!chinli || !adonia) continue;
-        const docs = docsByAju.get(aju) || [];
-        const invoiceDoc = docs.find(r => clean(r[2]) === '380') || docs.find(r => clean(r[2]) === '217');
-        const invoiceNo = clean(invoiceDoc?.[3]).toUpperCase();
+
+        const documents = documentsByAju.get(aju) || [];
+        const invoiceDocument = documents.find(row => clean(row[2]) === '380') || documents.find(row => clean(row[2]) === '217');
+        const invoiceNo = clean(invoiceDocument?.[3]).toUpperCase();
         if (!invoiceNo) {
-          issues.push(file.name + ' · ' + aju + ': nomor invoice tidak ditemukan pada DOKUMEN (kode 380/217).');
-          continue;
+          issues.push(file.name + ' · ' + aju + ': nomor invoice tidak ditemukan pada DOKUMEN (kode 380/217). Baris barang tetap dimasukkan tanpa penambahan SKU.');
         }
-        ajuInvoice.set(aju, invoiceNo);
+        adoniaByAju.set(aju, {
+          invoiceNo,
+          nomorDaftar: clean(header[93]),
+          tanggalDaftar
+        });
         adoniaAjuCount++;
       }
 
-      let changed = 0;
-      const goodsSheet = wb.Sheets.BARANG;
-      if (!goodsSheet) throw new Error('Sheet BARANG tidak ditemukan.');
-      for (let r = 1; r < goodsRows.length; r++) {
-        const row = goodsRows[r] || [];
+      const rows = [];
+      for (let rowIndex = 1; rowIndex < goodsRows.length; rowIndex++) {
+        const row = goodsRows[rowIndex] || [];
         const aju = clean(row[0]);
-        const invoiceNo = ajuInvoice.get(aju);
-        if (!invoiceNo) continue;
+        const ajuInfo = adoniaByAju.get(aju);
+        if (!ajuInfo) continue;
+
         const lineNo = clean(row[1]);
         const materialCode = clean(row[3]);
-        const key = invoiceNo + '|' + String(Number(lineNo));
-        const candidates = invoiceItems.get(key) || [];
-        if (!candidates.length) {
+        const invoiceKey = ajuInfo.invoiceNo && /^\\d+$/.test(lineNo)
+          ? ajuInfo.invoiceNo + '|' + String(Number(lineNo))
+          : '';
+        const candidates = invoiceKey ? (invoiceItems.get(invoiceKey) || []) : [];
+        const valid = candidates.filter(item => item.materialKey === norm(materialCode));
+        let sku = '';
+        let status = 'INVOICE ITEM NOT FOUND';
+        let note = 'Nomor invoice atau nomor urut item tidak ditemukan pada Invoice.';
+
+        if (valid.length === 1) {
+          sku = valid[0].sku;
+          status = 'MATCHED';
+          note = 'SKU Invoice cocok dengan Nomor Invoice, Nomor Urut Item, dan Material Code.';
+          itemMatched++;
+        } else if (valid.length > 1) {
+          status = 'DUPLICATE INVOICE ITEM';
+          note = 'Lebih dari satu baris Invoice cocok; SKU tidak ditambahkan.';
           itemUnmatched++;
-          details.push({ file: file.name, aju, invoiceNo, lineNo, materialCode, sku: '', status: 'INVOICE ITEM NOT FOUND', note: 'Nomor urut item tidak ditemukan pada Invoice.' });
-          continue;
-        }
-        const valid = candidates.filter(x => x.materialKey === norm(materialCode));
-        if (valid.length !== 1) {
+        } else if (candidates.length) {
+          status = 'MATERIAL CODE MISMATCH';
+          note = 'Material Code Invoice berbeda dari Kode Barang CEISA; SKU tidak ditambahkan.';
           itemUnmatched++;
-          details.push({ file: file.name, aju, invoiceNo, lineNo, materialCode, sku: candidates.map(x => x.sku).join(' / '), status: valid.length > 1 ? 'DUPLICATE INVOICE ITEM' : 'MATERIAL CODE MISMATCH', note: valid.length > 1 ? 'Lebih dari satu baris Invoice cocok.' : 'MATERIAL CODE Invoice berbeda dari KODE BARANG CEISA.' });
-          continue;
+        } else {
+          itemUnmatched++;
         }
-        const sku = valid[0].sku;
-        const existing = clean(row[8]);
-        if (existing && existing !== '-' && existing !== sku) {
+
+        const existingSpecification = clean(row[8]);
+        const finalSpecification = mergeSpecification(existingSpecification, sku);
+        if (status === 'MATCHED' && finalSpecification !== existingSpecification && existingSpecification && existingSpecification !== '-' && norm(existingSpecification).includes(norm(sku))) {
           itemSkipped++;
-          details.push({ file: file.name, aju, invoiceNo, lineNo, materialCode, sku, status: 'SPECIFICATION CONFLICT', note: 'Spesifikasi Lain sudah berisi nilai berbeda; tidak ditimpa.' });
-          continue;
         }
-        const cellAddress = XLSX.utils.encode_cell({ r, c: 8 });
-        if (!goodsSheet[cellAddress]) goodsSheet[cellAddress] = { t: 's', v: sku };
-        else { goodsSheet[cellAddress].t = 's'; goodsSheet[cellAddress].v = sku; delete goodsSheet[cellAddress].w; }
-        changed++;
-        itemMatched++;
-        details.push({ file: file.name, aju, invoiceNo, lineNo, materialCode, sku, status: 'MATCHED', note: 'SKU berhasil dimasukkan ke Spesifikasi Lain.' });
+
+        rows.push({
+          'Nomor AJU': aju,
+          'Nomor Daftar': ajuInfo.nomorDaftar,
+          'Tanggal Daftar': ajuInfo.tanggalDaftar,
+          'Kode Barang': clean(row[3]),
+          'Uraian Barang': clean(row[4]),
+          'Spesifikasi Lain': finalSpecification,
+          'Jenis Satuan': clean(row[9]),
+          'Kuantiti': numberValue(row[10])
+        });
+
+        details.push({
+          file: file.name,
+          aju,
+          invoiceNo: ajuInfo.invoiceNo,
+          lineNo,
+          materialCode,
+          sku,
+          status,
+          note
+        });
       }
-      const oldGoodsSheet = wb.Sheets.BARANG;
-      const orderedRows = goodsRows.slice(1).map((row, index) => ({ row, sourceRow: index + 1 })).filter(item => clean(item.row[0])).sort((a, b) =>
-        clean(a.row[0]).localeCompare(clean(b.row[0]), 'en', { numeric: true }) ||
-        (Number(clean(a.row[1])) || 0) - (Number(clean(b.row[1])) || 0)
+
+      rows.sort((a, b) =>
+        a['Nomor AJU'].localeCompare(b['Nomor AJU'], 'en', { numeric: true }) ||
+        String(a['Nomor Daftar']).localeCompare(String(b['Nomor Daftar']), 'en', { numeric: true }) ||
+        a['Kode Barang'].localeCompare(b['Kode Barang'], 'en', { numeric: true })
       );
-      const sortedGoodsSheet = {};
-      const columnCount = Math.max(...goodsRows.map(row => row.length));
-      const sourceRows = [0, ...orderedRows.map(item => item.sourceRow)];
-      sourceRows.forEach((sourceRow, targetRow) => {
-        for (let col = 0; col < columnCount; col++) {
-          const sourceCell = oldGoodsSheet[XLSX.utils.encode_cell({ r: sourceRow, c: col })];
-          if (sourceCell) sortedGoodsSheet[XLSX.utils.encode_cell({ r: targetRow, c: col })] = { ...sourceCell };
-        }
-      });
-      for (const meta of ['!cols', '!rows', '!merges', '!autofilter', '!sheetViews', '!margins', '!pageSetup']) {
-        if (oldGoodsSheet[meta]) sortedGoodsSheet[meta] = oldGoodsSheet[meta];
-      }
-      sortedGoodsSheet['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(0, sourceRows.length - 1), c: Math.max(0, columnCount - 1) } });
-      wb.Sheets.BARANG = sortedGoodsSheet;
+
+      const outputWorkbook = XLSX.utils.book_new();
+      const outputSheet = XLSX.utils.json_to_sheet(rows, { header: ADONIA_OUTPUT_HEADERS });
+      outputSheet['!cols'] = [24, 16, 16, 22, 48, 42, 16, 16].map(wch => ({ wch }));
+      if (outputSheet['!ref']) outputSheet['!autofilter'] = { ref: outputSheet['!ref'] };
+      XLSX.utils.book_append_sheet(outputWorkbook, outputSheet, 'BARANG');
+
       outputs.push({
-        name: file.name.replace(/\.xlsx$/i, '') + '_ADD_SKU_ADONIA.xlsx',
-        data: XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true }),
-        changed
+        name: file.name.replace(/\\.xlsx$/i, '') + '_ADONIA_BARANG.xlsx',
+        data: XLSX.write(outputWorkbook, { bookType: 'xlsx', type: 'array' }),
+        changed: itemMatched,
+        rows: rows.length
       });
-    } catch (e) {
-      issues.push(file.name + ': ' + (e.message || 'gagal diproses.'));
+      outputRows += rows.length;
+    } catch (error) {
+      issues.push(file.name + ': ' + (error.message || 'gagal diproses.'));
     }
   }
 
-  if (!outputs.length) throw new Error(issues.join('\n') || 'Tidak ada file CEISA yang dapat diproses.');
+  if (!outputs.length) throw new Error(issues.join('\\n') || 'Tidak ada file CEISA yang dapat diproses.');
+  if (!outputRows) issues.push('Tidak ditemukan baris BARANG untuk transaksi Adonia pada periode yang dipilih.');
+
   return {
-    outputs, details, issues,
-    summary: { invoiceFiles: invoiceFiles.length, invoiceSheetsRead, adoniaAjuCount, itemMatched, itemUnmatched, itemSkipped, outputFiles: outputs.length }
+    outputs,
+    details,
+    issues,
+    summary: {
+      invoiceFiles: invoiceFiles.length,
+      invoiceSheetsRead,
+      adoniaAjuCount,
+      itemMatched,
+      itemUnmatched,
+      itemSkipped,
+      outputFiles: outputs.length,
+      outputRows
+    }
   };
 }
