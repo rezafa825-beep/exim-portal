@@ -148,8 +148,6 @@ export default function BC27Monthly() {
           {skuResult.details.length>500&&<p className="bc27-preview-note">Pratinjau dibatasi 500 baris; seluruh hasil tetap tersedia pada file CEISA.</p>}
           <div className="bc27-sku-downloads"><b>Download Excel CEISA yang sudah diisi SKU dan diurutkan berdasarkan Nomor AJU + Seri Barang</b>{skuResult.outputs.map((output,i)=><div key={output.name}><span>{output.name} · {output.changed} SKU diisi</span><button className="bc27-secondary" onClick={()=>downloadAdoniaSkuFile(output)}>DOWNLOAD EXCEL</button></div>)}</div>
         </>}
-      </section>
-
       </section>}
 
       {workflowOption==='standard'&&<section className="bc27-card">
