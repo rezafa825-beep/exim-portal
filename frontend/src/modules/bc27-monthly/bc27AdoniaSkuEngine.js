@@ -26,7 +26,6 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles) {
   if (!ceisaFiles?.length) throw new Error('File CEISA belum tersedia.');
   if (!invoiceFiles?.length) throw new Error('Pilih minimal satu file Excel Invoice Adonia.');
   const invoiceItems = new Map();
-  const invoiceMeta = new Map();
   const invoiceErrors = [];
   let invoiceSheetsRead = 0;
 
@@ -49,7 +48,6 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles) {
         if (!invMatch || !shipToAdonia) continue;
         const invoiceNo = clean(invMatch[1]).toUpperCase();
         invoiceSheetsRead++;
-        invoiceMeta.set(invoiceNo, { invoiceNo, file: file.name, sheet: sheetName });
         for (const row of rows.slice(hi + 1)) {
           const lineNo = clean(row[noCol]);
           const sku = clean(row[skuCol]);
@@ -155,6 +153,25 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles) {
         itemMatched++;
         details.push({ file: file.name, aju, invoiceNo, lineNo, materialCode, sku, status: 'MATCHED', note: 'SKU berhasil dimasukkan ke Spesifikasi Lain.' });
       }
+      const oldGoodsSheet = wb.Sheets.BARANG;
+      const orderedRows = goodsRows.slice(1).map((row, index) => ({ row, sourceRow: index + 1 })).sort((a, b) =>
+        clean(a.row[0]).localeCompare(clean(b.row[0]), 'en', { numeric: true }) ||
+        (Number(clean(a.row[1])) || 0) - (Number(clean(b.row[1])) || 0)
+      );
+      const sortedGoodsSheet = {};
+      const columnCount = Math.max(...goodsRows.map(row => row.length));
+      const sourceRows = [0, ...orderedRows.map(item => item.sourceRow)];
+      sourceRows.forEach((sourceRow, targetRow) => {
+        for (let col = 0; col < columnCount; col++) {
+          const sourceCell = oldGoodsSheet[XLSX.utils.encode_cell({ r: sourceRow, c: col })];
+          if (sourceCell) sortedGoodsSheet[XLSX.utils.encode_cell({ r: targetRow, c: col })] = { ...sourceCell };
+        }
+      });
+      for (const meta of ['!cols', '!rows', '!merges', '!autofilter', '!sheetViews', '!margins', '!pageSetup']) {
+        if (oldGoodsSheet[meta]) sortedGoodsSheet[meta] = oldGoodsSheet[meta];
+      }
+      sortedGoodsSheet['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(0, sourceRows.length - 1), c: Math.max(0, columnCount - 1) } });
+      wb.Sheets.BARANG = sortedGoodsSheet;
       outputs.push({
         name: file.name.replace(/\.xlsx$/i, '') + '_ADD_SKU_ADONIA.xlsx',
         data: XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true }),
