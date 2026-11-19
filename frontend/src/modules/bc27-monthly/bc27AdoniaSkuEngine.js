@@ -15,7 +15,7 @@ const findHeader = (rows, required, max = 50) => {
   return -1;
 };
 const findColumn = (header, key) => header.findIndex(v => norm(v) === key || norm(v).includes(key));
-export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles) {
+export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
   if (!ceisaFiles?.length) throw new Error('File CEISA belum tersedia.');
   if (!invoiceFiles?.length) throw new Error('Pilih minimal satu file Excel Invoice Adonia.');
   const invoiceItems = new Map();
@@ -94,6 +94,15 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles) {
       for (const h of headerData) {
         const aju = clean(h[0]);
         if (!aju || clean(h[1]) !== '27') continue;
+        const rawDate = h[94];
+        let dateKey = '';
+        if (rawDate instanceof Date && !Number.isNaN(rawDate.getTime())) {
+          dateKey = rawDate.getFullYear() + '-' + String(rawDate.getMonth() + 1).padStart(2, '0');
+        } else {
+          const dateMatch = clean(rawDate).match(/^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})/);
+          if (dateMatch) dateKey = dateMatch[1] + '-' + String(dateMatch[2]).padStart(2, '0');
+        }
+        if (period?.year && period?.month && dateKey !== String(period.year) + '-' + String(period.month).padStart(2, '0')) continue;
         const entities = entitiesByAju.get(aju) || [];
         const chinli = entities.some(r => clean(r[2]) === '3' && norm(r[5]) === 'CHINLIPLASTICMATERIALSINDONESIA');
         const adonia = entities.some(r => clean(r[2]) === '8' && /ADONIA/i.test(clean(r[5])));
