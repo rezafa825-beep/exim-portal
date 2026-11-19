@@ -99,7 +99,7 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
         if (rawDate instanceof Date && !Number.isNaN(rawDate.getTime())) {
           dateKey = rawDate.getFullYear() + '-' + String(rawDate.getMonth() + 1).padStart(2, '0');
         } else {
-          const dateMatch = clean(rawDate).match(/^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})/);
+          const dateMatch = clean(rawDate).match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
           if (dateMatch) dateKey = dateMatch[1] + '-' + String(dateMatch[2]).padStart(2, '0');
         }
         if (period?.year && period?.month && dateKey !== String(period.year) + '-' + String(period.month).padStart(2, '0')) continue;
