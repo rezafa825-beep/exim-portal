@@ -5,7 +5,7 @@ const norm = v => clean(v).toUpperCase().replace(/[^A-Z0-9]/g, '');
 const rowsOf = (wb, name, fileName) => {
   const ws = wb.Sheets[name];
   if (!ws) throw new Error(fileName + ': sheet ' + name + ' tidak ditemukan.');
-  return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true, blankrows: false });
+  return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true, blankrows: true });
 };
 const findHeader = (rows, required, max = 50) => {
   for (let i = 0; i < Math.min(rows.length, max); i++) {
@@ -49,7 +49,9 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
           const key = invoiceNo + '|' + String(Number(lineNo));
           const item = { invoiceNo, lineNo: String(Number(lineNo)), sku, materialCode, materialKey: norm(materialCode), source: file.name, sheet: sheetName };
           if (!invoiceItems.has(key)) invoiceItems.set(key, []);
-          invoiceItems.get(key).push(item);
+          const bucket = invoiceItems.get(key);
+          const duplicate = bucket.some(existing => existing.materialKey === item.materialKey && norm(existing.sku) === norm(item.sku));
+          if (!duplicate) bucket.push(item);
         }
       }
     } catch (e) {
