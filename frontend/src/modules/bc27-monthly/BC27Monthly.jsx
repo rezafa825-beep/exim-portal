@@ -140,7 +140,7 @@ export default function BC27Monthly() {
         {skuResult&&<>
           <div className="bc27-stats bc27-sku-stats">
             {[
-              ['File Invoice',skuResult.summary.invoiceFiles],['Sheet Invoice terbaca',skuResult.summary.invoiceSheetsRead],['AJU Adonia',skuResult.summary.adoniaAjuCount],['Item berhasil diisi',skuResult.summary.itemMatched],['Item tidak cocok',skuResult.summary.itemUnmatched],['SKU sudah tercantum',skuResult.summary.itemSkipped],['Baris output',skuResult.summary.outputRows],['File output',skuResult.summary.outputFiles]
+              ['File Invoice',skuResult.summary.invoiceFiles],['Sheet Invoice terbaca',skuResult.summary.invoiceSheetsRead],['AJU Adonia',skuResult.summary.adoniaAjuCount],['Item cocok invoice',skuResult.summary.itemMatched],['Item tidak cocok',skuResult.summary.itemUnmatched],['SKU sudah tercantum',skuResult.summary.itemSkipped],['Baris output',skuResult.summary.outputRows],['File output',skuResult.summary.outputFiles]
             ].map(([label,val])=><div key={label}><small>{label}</small><b>{Number(val).toLocaleString('id-ID')}</b></div>)}
           </div>
           {skuResult.issues.length>0&&<div className="bc27-warning"><b>Catatan pembacaan</b>{skuResult.issues.map((x,i)=><p key={i}>{x}</p>)}</div>}
