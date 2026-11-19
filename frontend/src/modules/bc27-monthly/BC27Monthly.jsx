@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { DATABASE_HEADERS, OUTPUT_HEADERS, CATEGORY_MASTER, parseMonthlyBc27Files, exportMonthlyWorkbook } from './bc27MonthlyEngine';
 import { parseErpMappings, parseFinishedGoodsInventory, buildCrosscheck, exportCrosscheck, downloadMappingTemplate } from './bc27CrosscheckEngine';
+import { buildAdoniaSkuOutputs } from './bc27AdoniaSkuEngine';
 
 const monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const fmt = value => Number(value || 0).toLocaleString('id-ID', { maximumFractionDigits: 4 });
@@ -28,6 +29,10 @@ export default function BC27Monthly() {
   const [manualCustomer, setManualCustomer] = useState('');
   const [manualCeisa, setManualCeisa] = useState('');
   const [manualInternal, setManualInternal] = useState('');
+  const [invoiceFiles, setInvoiceFiles] = useState([]);
+  const [skuResult, setSkuResult] = useState(null);
+  const [skuBusy, setSkuBusy] = useState(false);
+  const [skuError, setSkuError] = useState('');
 
   const years = useMemo(() => {
     const current = now.getFullYear();
@@ -40,14 +45,14 @@ export default function BC27Monthly() {
       incoming.forEach(file => map.set(`${file.name}:${file.size}:${file.lastModified}`, file));
       return [...map.values()];
     });
-    setResult(null); setError(''); setNotice(''); setInventoryFile(null); setInventory(null); setCrosscheck(null); setCrossError('');
+    setResult(null); setError(''); setNotice(''); setInventoryFile(null); setInventory(null); setCrosscheck(null); setCrossError(''); setSkuResult(null); setSkuError('');
     if (!incoming.length) setError('Pilih file Excel CEISA dengan format .xlsx.');
   };
   const processFiles = async () => {
     setBusy(true); setError(''); setNotice('');
     try {
       const parsed = await parseMonthlyBc27Files(files, period);
-      setResult(parsed); setTab('database'); setInventoryFile(null); setInventory(null); setCrosscheck(null); setCrossError('');
+      setResult(parsed); setTab('database'); setInventoryFile(null); setInventory(null); setCrosscheck(null); setCrossError(''); setSkuResult(null); setSkuError('');
       const s = parsed.summary;
       setNotice(`Selesai membaca ${s.files} file. ${s.databaseRows.toLocaleString('id-ID')} baris barang masuk DATABASE dan ${s.outputRows.toLocaleString('id-ID')} kelompok barang terbentuk di OUTPUT.`);
       if (parsed.errors.length) setError(parsed.errors.join('\n'));
@@ -55,7 +60,23 @@ export default function BC27Monthly() {
       setResult(null); setError(e.message || 'Gagal memproses Excel CEISA.');
     } finally { setBusy(false); }
   };
-  const reset = () => { setFiles([]); setResult(null); setError(''); setNotice(''); setTab('database'); setErpFile(null); setInventoryFile(null); setInventory(null); setCrosscheck(null); setCrossError(''); };
+  const reset = () => { setFiles([]); setResult(null); setError(''); setNotice(''); setTab('database'); setErpFile(null); setInventoryFile(null); setInventory(null); setCrosscheck(null); setCrossError(''); setInvoiceFiles([]); setSkuResult(null); setSkuError(''); };
+  const processAdoniaSku = async () => {
+    setSkuBusy(true); setSkuError(''); setSkuResult(null);
+    try {
+      const parsed = await buildAdoniaSkuOutputs(files, invoiceFiles);
+      setSkuResult(parsed);
+    } catch (e) {
+      setSkuError(e.message || 'Gagal mencocokkan SKU Invoice dengan CEISA.');
+    } finally { setSkuBusy(false); }
+  };
+  const downloadAdoniaSkuFile = output => {
+    const blob = new Blob([output.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url; anchor.download = output.name; anchor.click();
+    URL.revokeObjectURL(url);
+  };
   const exportExcel = () => {
     if (!result) return;
     exportMonthlyWorkbook(result.database, result.output, period);
@@ -98,8 +119,29 @@ export default function BC27Monthly() {
         {result.notices.length>0&&<details className="bc27-details"><summary>{result.notices.length} catatan validasi data</summary><ul>{result.notices.slice(0,100).map((x,i)=><li key={i}>{x}</li>)}</ul>{result.notices.length>100&&<small>Menampilkan 100 catatan pertama.</small>}</details>}
       </section>
 
+
+      <section className="bc27-card bc27-adonia-sku">
+        <div className="bc27-section-head"><div><h2>4. Add SKU to Spesifikasi Lain · Khusus Adonia</h2><p>Upload satu atau beberapa Excel Invoice. Sistem menyandingkan Nomor Invoice, Nomor Urut Item, dan Material Code dengan data CEISA.</p></div><span className="bc27-step">04</span></div>
+        <div className="bc27-sku-info"><b>Alur pencocokan otomatis</b><ol><li>Nomor AJU dan entitas tujuan Adonia diidentifikasi dari CEISA.</li><li>Nomor Invoice dibaca dari sheet DOKUMEN (kode dokumen 380, dengan 217 sebagai fallback).</li><li>Nomor urut Invoice dicocokkan dengan SERI BARANG CEISA.</li><li>MATERIAL CODE Invoice harus sama dengan KODE BARANG CEISA sebelum SKU dimasukkan ke SPESIFIKASI LAIN.</li></ol></div>
+        <label className="bc27-drop bc27-invoice-drop"><input type="file" accept=".xlsx" multiple onChange={e=>{const incoming=[...e.target.files].filter(file=>/\.xlsx$/i.test(file.name));setInvoiceFiles(prev=>[...new Map([...prev,...incoming].map(file=>[file.name+':'+file.size+':'+file.lastModified,file])).values()]);setSkuResult(null);setSkuError('');e.target.value='';}}/><span className="bc27-upload-icon">⇧</span><b>Pilih beberapa Excel Invoice Adonia (.xlsx)</b><small>Invoice biasa maupun file gabungan beberapa sheet Invoice</small><span className="bc27-drop-note">Nomor Invoice digunakan untuk memisahkan transaksi; satu file boleh berisi beberapa sheet Invoice.</span></label>
+        {invoiceFiles.length>0&&<div className="bc27-file-list">{invoiceFiles.map(file=><div key={file.name+':'+file.size+':'+file.lastModified}><span className="bc27-file-icon">XLSX</span><b>{file.name}</b><small>{(file.size/1024).toLocaleString('id-ID',{maximumFractionDigits:0})} KB</small><button onClick={()=>{setInvoiceFiles(prev=>prev.filter(x=>x!==file));setSkuResult(null)}} aria-label={'Hapus '+file.name}>×</button></div>)}</div>}
+        <div className="bc27-actions"><button className="bc27-primary" disabled={!files.length||!invoiceFiles.length||skuBusy} onClick={processAdoniaSku}>{skuBusy?'MEMBACA INVOICE & MENCOCOKKAN SKU...':'PROSES ADD SKU ADONIA'}</button><button className="bc27-secondary" disabled={!invoiceFiles.length&&!skuResult} onClick={()=>{setInvoiceFiles([]);setSkuResult(null);setSkuError('')}}>Reset Invoice</button></div>
+        {skuError&&<div className="bc27-error">{skuError}</div>}
+        {skuResult&&<>
+          <div className="bc27-stats bc27-sku-stats">
+            {[
+              ['File Invoice',skuResult.summary.invoiceFiles],['Sheet Invoice terbaca',skuResult.summary.invoiceSheetsRead],['AJU Adonia',skuResult.summary.adoniaAjuCount],['Item berhasil diisi',skuResult.summary.itemMatched],['Item tidak cocok',skuResult.summary.itemUnmatched],['Konflik dilewati',skuResult.summary.itemSkipped],['File CEISA output',skuResult.summary.outputFiles]
+            ].map(([label,val])=><div key={label}><small>{label}</small><b>{Number(val).toLocaleString('id-ID')}</b></div>)}
+          </div>
+          {skuResult.issues.length>0&&<div className="bc27-warning"><b>Catatan pembacaan</b>{skuResult.issues.map((x,i)=><p key={i}>{x}</p>)}</div>}
+          <div className="bc27-table-wrap"><table className="bc27-table"><thead><tr><th>Status</th><th>Nomor AJU</th><th>Nomor Invoice</th><th>No. Item</th><th>Material Code CEISA</th><th>SKU Invoice</th><th>Catatan</th></tr></thead><tbody>{skuResult.details.slice(0,500).map((r,i)=><tr key={r.aju+'-'+r.lineNo+'-'+i}><td>{r.status}</td><td>{r.aju}</td><td>{r.invoiceNo}</td><td>{r.lineNo}</td><td>{r.materialCode}</td><td>{r.sku}</td><td className="wide-cell">{r.note}</td></tr>)}</tbody></table></div>
+          {skuResult.details.length>500&&<p className="bc27-preview-note">Pratinjau dibatasi 500 baris; seluruh hasil tetap tersedia pada file CEISA.</p>}
+          <div className="bc27-sku-downloads"><b>Download Excel CEISA yang sudah diisi SKU dan diurutkan berdasarkan Nomor AJU + Seri Barang</b>{skuResult.outputs.map((output,i)=><div key={output.name}><span>{output.name} · {output.changed} SKU diisi</span><button className="bc27-secondary" onClick={()=>downloadAdoniaSkuFile(output)}>DOWNLOAD EXCEL</button></div>)}</div>
+        </>}
+      </section>
+
       <section className="bc27-card">
-        <div className="bc27-section-head"><div><h2>4. DATABASE dan OUTPUT</h2><p>DATABASE menyimpan rincian per barang per AJU. OUTPUT menjumlahkan transaksi berdasarkan identitas barang, Jenis Satuan, dan Kategori Barang.</p></div><span className="bc27-step">04</span></div>
+        <div className="bc27-section-head"><div><h2>5. DATABASE dan OUTPUT</h2><p>DATABASE menyimpan rincian per barang per AJU. OUTPUT menjumlahkan transaksi berdasarkan identitas barang, Jenis Satuan, dan Kategori Barang.</p></div><span className="bc27-step">04</span></div>
         <div className="bc27-tabs"><button className={tab==='database'?'active':''} onClick={()=>setTab('database')}>DATABASE ({result.database.length.toLocaleString('id-ID')})</button><button className={tab==='output'?'active':''} onClick={()=>setTab('output')}>OUTPUT ({result.output.length.toLocaleString('id-ID')})</button></div>
         {previewRows.length===0?<div className="bc27-empty">Tidak ada data untuk periode yang dipilih.</div>:<>
           <div className="bc27-table-wrap"><table className="bc27-table"><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{shownRows.map((row,i)=><tr key={`${tab}-${i}`}>{headers.map(h=><td key={h} className={h==='Uraian Barang'||h==='Entitas Perusahaan Tujuan'?'wide-cell':''}>{h==='Jumlah Satuan'?fmt(row[h]):row[h]??''}</td>)}</tr>)}</tbody></table></div>
@@ -111,7 +153,7 @@ export default function BC27Monthly() {
 
 
       {result&&<section className="bc27-card bc27-crosscheck">
-        <div className="bc27-section-head"><div><h2>5. Crosscheck CEISA vs IT Inventory</h2><p>Bagian ini tersedia setelah CEISA berhasil diproses. Hanya kategori 1 · Hasil Produksi yang dibandingkan.</p></div><span className="bc27-step">05</span></div>
+        <div className="bc27-section-head"><div><h2>6. Crosscheck CEISA vs IT Inventory</h2><p>Bagian ini tersedia setelah CEISA berhasil diproses. Hanya kategori 1 · Hasil Produksi yang dibandingkan.</p></div><span className="bc27-step">05</span></div>
         <div className="bc27-cross-flow">
           <div className="bc27-cross-step"><b>A · Master Mapping ERP tunggal</b><p>Gunakan satu file master terbaru dengan kolom CUSTOMER, NO STYLE, dan ITEM CODE CHINLI. Setelah dibaca, mapping disimpan di browser ini sehingga tetap tersedia saat halaman dibuka kembali. Mapping diterapkan sesuai customer, bukan lintas customer.</p>
             <label className="bc27-file-input">Pilih / ganti Master Mapping ERP (.xlsx)<input type="file" accept=".xlsx" onChange={e=>{setErpFile(e.target.files?.[0]||null);setCrosscheck(null);setCrossError('')}}/></label>
