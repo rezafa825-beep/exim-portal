@@ -158,7 +158,7 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
         details.push({ file: file.name, aju, invoiceNo, lineNo, materialCode, sku, status: 'MATCHED', note: 'SKU berhasil dimasukkan ke Spesifikasi Lain.' });
       }
       const oldGoodsSheet = wb.Sheets.BARANG;
-      const orderedRows = goodsRows.slice(1).map((row, index) => ({ row, sourceRow: index + 1 })).sort((a, b) =>
+      const orderedRows = goodsRows.slice(1).map((row, index) => ({ row, sourceRow: index + 1 })).filter(item => clean(item.row[0])).sort((a, b) =>
         clean(a.row[0]).localeCompare(clean(b.row[0]), 'en', { numeric: true }) ||
         (Number(clean(a.row[1])) || 0) - (Number(clean(b.row[1])) || 0)
       );
