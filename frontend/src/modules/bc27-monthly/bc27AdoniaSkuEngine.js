@@ -11,7 +11,7 @@ export const ADONIA_OUTPUT_HEADERS = [
   'Kuantiti'
 ];
 
-const clean = value => String(value ?? '').replace(/\\u00a0/g, ' ').replace(/[\\r\\n]+/g, ' ').trim();
+const clean = value => String(value ?? '').replace(/\u00a0/g, ' ').replace(/[\r\n]+/g, ' ').trim();
 const norm = value => clean(value).toUpperCase().replace(/[^A-Z0-9]/g, '');
 const rowsOf = (workbook, name, fileName) => {
   const sheet = workbook.Sheets[name];
@@ -37,9 +37,9 @@ function formatCeisaDate(value) {
   }
   const raw = clean(value);
   if (!raw) return '';
-  let match = raw.match(/^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})/);
+  let match = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (match) return match[1] + '-' + String(match[2]).padStart(2, '0') + '-' + String(match[3]).padStart(2, '0');
-  match = raw.match(/^(\\d{1,2})[-/](\\d{1,2})[-/](\\d{4})$/);
+  match = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
   if (match) return match[3] + '-' + String(match[2]).padStart(2, '0') + '-' + String(match[1]).padStart(2, '0');
   return raw;
 }
@@ -55,7 +55,7 @@ function mergeSpecification(existingValue, skuValue) {
 
 function numberValue(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-  const raw = clean(value).replace(/\\s/g, '');
+  const raw = clean(value).replace(/\s/g, '');
   if (!raw) return 0;
   const parsed = Number(raw.replace(/,/g, ''));
   return Number.isFinite(parsed) ? parsed : value;
@@ -71,7 +71,7 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
   let invoiceSheetsRead = 0;
 
   for (const file of invoiceFiles) {
-    if (!/\\.xlsx?$/i.test(file.name)) {
+    if (!/\.xlsx?$/i.test(file.name)) {
       invoiceErrors.push(file.name + ': format tidak didukung.');
       continue;
     }
@@ -88,7 +88,7 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
         if ([noColumn, skuColumn, materialColumn].some(index => index < 0)) continue;
 
         const topText = rows.slice(0, headerIndex + 1).flat().map(clean).join(' | ');
-        const invoiceMatch = topText.match(/INVOICE\\s*NO\\s*:?\\s*([A-Z0-9][A-Z0-9./_-]*)/i);
+        const invoiceMatch = topText.match(/INVOICE\s*NO\s*:?\s*([A-Z0-9][A-Z0-9./_-]*)/i);
         const isAdoniaInvoice = /ADONIA/i.test(topText);
         if (!invoiceMatch || !isAdoniaInvoice) continue;
 
@@ -98,7 +98,7 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
           const lineNo = clean(row[noColumn]);
           const sku = clean(row[skuColumn]);
           const materialCode = clean(row[materialColumn]);
-          if (!/^\\d+$/.test(lineNo) || !sku || !materialCode) continue;
+          if (!/^\d+$/.test(lineNo) || !sku || !materialCode) continue;
           const key = invoiceNo + '|' + String(Number(lineNo));
           const item = {
             invoiceNo,
@@ -121,7 +121,7 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
   }
 
   if (!invoiceSheetsRead || !invoiceItems.size) {
-    throw new Error(invoiceErrors.join('\\n') || 'Tidak ditemukan sheet Invoice Adonia dengan kolom NO, SKU, MATERIAL CODE dan nomor invoice.');
+    throw new Error(invoiceErrors.join('\n') || 'Tidak ditemukan sheet Invoice Adonia dengan kolom NO, SKU, MATERIAL CODE dan nomor invoice.');
   }
 
   const outputs = [];
@@ -163,7 +163,7 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
         if (!aju || clean(header[1]) !== '27') continue;
 
         const tanggalDaftar = formatCeisaDate(header[94]);
-        const dateMatch = tanggalDaftar.match(/^(\\d{4})-(\\d{2})-/);
+        const dateMatch = tanggalDaftar.match(/^(\d{4})-(\d{2})-/);
         const dateKey = dateMatch ? dateMatch[1] + '-' + dateMatch[2] : '';
         if (period?.year && period?.month && dateKey !== String(period.year) + '-' + String(period.month).padStart(2, '0')) continue;
 
@@ -196,7 +196,7 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
 
         const lineNo = clean(row[1]);
         const materialCode = clean(row[3]);
-        const invoiceKey = ajuInfo.invoiceNo && /^\\d+$/.test(lineNo)
+        const invoiceKey = ajuInfo.invoiceNo && /^\d+$/.test(lineNo)
           ? ajuInfo.invoiceNo + '|' + String(Number(lineNo))
           : '';
         const candidates = invoiceKey ? (invoiceItems.get(invoiceKey) || []) : [];
@@ -263,7 +263,7 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
       XLSX.utils.book_append_sheet(outputWorkbook, outputSheet, 'BARANG');
 
       outputs.push({
-        name: file.name.replace(/\\.xlsx$/i, '') + '_ADONIA_BARANG.xlsx',
+        name: file.name.replace(/\.xlsx$/i, '') + '_ADONIA_BARANG.xlsx',
         data: XLSX.write(outputWorkbook, { bookType: 'xlsx', type: 'array' }),
         changed,
         rows: rows.length,
@@ -275,7 +275,7 @@ export async function buildAdoniaSkuOutputs(ceisaFiles, invoiceFiles, period) {
     }
   }
 
-  if (!outputs.length) throw new Error(issues.join('\\n') || 'Tidak ada file CEISA yang dapat diproses.');
+  if (!outputs.length) throw new Error(issues.join('\n') || 'Tidak ada file CEISA yang dapat diproses.');
   if (!outputRows) issues.push('Tidak ditemukan baris BARANG untuk transaksi Adonia pada periode yang dipilih.');
 
   return {
