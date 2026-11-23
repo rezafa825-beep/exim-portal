@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import './style.css';
 import RawMaterial from './modules/raw-material/RawMaterial';
 import BC27Monthly from './modules/bc27-monthly/BC27Monthly';
+import MonitoringSubkontrak from './modules/monitoring-subkontrak/MonitoringSubkontrak';
 import {validateFiles} from './core/validate';
 import {getCustomers,upsertCustomer,removeCustomer} from './core/customers';
 import {addHistory,listHistory,getHistory,deleteHistory,deleteHistoryOlderThanDays,clearHistory} from './storage/history';
@@ -18,7 +19,7 @@ function Dashboard({open}){
       <button className="home-card" onClick={()=>open('report')}><span className="home-icon">💬</span><h2>WhatsApp Report</h2><p>Buat laporan format WhatsApp dari satu atau beberapa file Excel, dengan pengaturan jalur dan pengecualian nomor daftar.</p><span className="home-go">Buka WhatsApp Report →</span></button>
       <button className="home-card" onClick={()=>open('raw-material')}><span className="home-icon">▤</span><h2>Pengambilan Data Bahan Baku</h2><p>Ambil data barang CEISA dan bentuk output BAHANBAKU serta BAHANBAKUTARIF.</p><span className="home-go">Buka Pengambilan Data Bahan Baku →</span></button>
       <button className="home-card" onClick={()=>open('bc27-monthly')}><span className="home-icon">▦</span><h2>BC 2.7 Monthly Report</h2><p>Rekapitulasi barang keluar BC 2.7 dari beberapa file CEISA berdasarkan kode barang, satuan, dan kategori.</p><span className="home-go">Buka BC 2.7 Monthly Report →</span></button>
-      <div className="home-card home-card-disabled"><span className="home-icon">◷</span><h2>Monitoring Subkontrak</h2><p>Integrasi akan dikerjakan pada tahap berikutnya.</p><span className="home-go">Segera hadir</span></div>
+      <button className="home-card" onClick={()=>open('monitoring-subkontrak')}><span className="home-icon">◷</span><h2>Monitoring Subkontrak</h2><p>Kelola master customer, kontrak, kuota, transaksi AJU, dan riwayat monitoring subkontrak.</p><span className="home-go">Buka Monitoring Subkontrak →</span></button>
     </section>
     <footer className="home-foot">REZA SYSTEM · File Excel diproses langsung di browser Anda</footer>
   </main>
@@ -43,7 +44,7 @@ function App(){
         <button className={module==='report'?'selected':''} onClick={()=>openModule('report')}><span>▤</span><b>WhatsApp Report</b></button>
         <button className={module==='raw-material'?'selected':''} onClick={()=>openModule('raw-material')}><span>▧</span><b>Pengambilan Data Bahan Baku</b></button>
         <button className={module==='bc27-monthly'?'selected':''} onClick={()=>openModule('bc27-monthly')}><span>▦</span><b>BC 2.7 Monthly Report</b></button>
-        <button className="menu-disabled" disabled title="Akan diintegrasikan pada tahap berikutnya"><span>◷</span><b>Monitoring Subkontrak</b></button>
+        <button className={module==='monitoring-subkontrak'?'selected':''} onClick={()=>openModule('monitoring-subkontrak')}><span>◷</span><b>Monitoring Subkontrak</b></button>
       </nav>
       <div className="portal-sidebar-foot">Setiap kesulitan pasti ada kemudahan</div>
     </aside>
@@ -63,6 +64,7 @@ function App(){
       </div>
       {module==='raw-material'&&<RawMaterial/>}
       {module==='bc27-monthly'&&<BC27Monthly/>}
+      {module==='monitoring-subkontrak'&&<MonitoringSubkontrak/>}
     </div>
   </div>
 }
