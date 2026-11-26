@@ -58,7 +58,7 @@ function App(){
       {reportOpened&&<main className={'portal-report'+(module==='report'?'':' is-hidden')}><iframe title="WhatsApp Report Generator" src="./report/index.html?v=20261126-portal-refresh1"/></main>}
       <div className={'shell'+(module==='validation'?'':' is-hidden')}>
         <aside><div className="brand">EXIM<span>VALIDATION</span></div><div className="brand-sub">DOCUMENT CONTROL</div>
-          <nav>{[['new','＋','New Validation'],['history','◷','History'],['customers','⚙','Customer Master']].map(([p,i,t])=><button key={p} className={page===p?'active':''} onClick={()=>go(p)}><span>{i}</span>{t}</button>)}</nav>
+          <nav aria-label="Navigasi EXIM Validation">{[['new','＋','New Validation'],['history','◷','History'],['customers','⚙','Customer Master']].map(([p,i,t])=><button key={p} type="button" title={t} aria-label={t} aria-current={page===p?'page':undefined} className={page===p?'active':''} onClick={()=>go(p)}><span aria-hidden="true">{i}</span><span className="validation-nav-text">{t}</span></button>)}</nav>
           <div className="side-note"><b>100% CLIENT-SIDE</b><br/>File stays in your browser<br/><small>GitHub Pages ready</small></div>
         </aside>
         <main><header className="top"><div><div className="eyebrow">EXIM DOCUMENT CONTROL</div><h1>{page==='new'?'New Validation':page==='history'?'Validation History':'Customer Master'}</h1></div><div className="pill"><i/> WEB · LOCAL PROCESSING</div></header>
