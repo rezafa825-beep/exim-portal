@@ -27,3 +27,91 @@ footer{font-size:12px;color:#7a8494;text-align:center;padding:12px}
 .tracking-table th,.tracking-table td{border:1px solid #e2e7ee;padding:9px 10px;text-align:left;vertical-align:top}
 .tracking-table th{background:#f1f4f8;position:sticky;top:0;z-index:1}
 #trackingPanel[hidden]{display:none}
+
+
+/* REZA SYSTEM Modern Enterprise — WhatsApp Report visual refinement */
+:root{
+  --report-navy:#17365d;
+  --report-blue:#315c84;
+  --report-page:#f3f6fa;
+  --report-border:#e1e8f0;
+  --report-muted:#64748b;
+}
+html{scroll-behavior:smooth}
+body{background:var(--report-page);color:#243447}
+.wrap{max-width:1320px;padding:30px clamp(14px,2.6vw,34px) 48px}
+header{padding:12px 2px 25px}
+header .eyebrow{color:var(--report-blue);font-size:10px;letter-spacing:1.5px}
+header h1{color:var(--report-navy);font-size:clamp(25px,3vw,34px);letter-spacing:-.6px}
+header .sub{color:var(--report-muted);font-size:13px;max-width:820px}
+.panel{
+  border:1px solid var(--report-border);
+  border-radius:13px;
+  padding:clamp(16px,2vw,23px);
+  margin-bottom:15px;
+  box-shadow:0 3px 14px rgba(23,54,93,.045);
+}
+.panel h2{color:var(--report-navy);font-size:16px;letter-spacing:-.15px;margin-bottom:13px}
+.hint{color:var(--report-muted);font-size:11px;line-height:1.65}
+label{color:#40536a;font-size:12px}
+input,select,textarea{
+  border-color:#cfd9e4;
+  border-radius:8px;
+  color:#243447;
+  font-size:13px;
+  transition:border-color .15s ease,box-shadow .15s ease;
+}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{
+  outline:3px solid rgba(59,130,246,.24);
+  outline-offset:2px;
+  border-color:#6f96bc;
+}
+button{
+  border-radius:8px;
+  padding:10px 14px;
+  background:var(--report-navy);
+  font-size:11px;
+  font-weight:800;
+  transition:background .15s ease,transform .15s ease,box-shadow .15s ease;
+}
+button:hover:not(:disabled){background:#244a73;box-shadow:0 3px 9px rgba(23,54,93,.12)}
+button:active:not(:disabled){transform:translateY(1px)}
+button.secondary{background:#edf2f7;color:#34495e;border:1px solid #dce5ee}
+button.secondary:hover:not(:disabled){background:#e2eaf3}
+.file-label{margin-bottom:8px}
+#excelFile{background:#f9fbfd}
+.uploaded-file,.red-row,.exclude-row,.export-row{
+  border-color:#e1e8f0;
+  border-radius:9px;
+  background:#fbfcfe;
+}
+.red-row:hover,.exclude-row:hover,.export-row:hover{border-color:#b9cadd;background:#f7faff}
+.red-list,.exclude-list,.export-list{max-height:380px}
+.red-flag{font-size:10px}
+textarea{font-size:12px}
+#output{min-height:300px;background:#fbfcfe}
+.section-title{align-items:center}
+.section-title input{font-size:12px}
+#excelExportPanel{border-top:3px solid #6d87a5}
+#trackingPanel{border-top:3px solid #8b9db0}
+#trackingPanel[hidden]{display:none!important}
+.tracking-preview{border-color:#dfe7ef;border-radius:9px}
+.tracking-table{font-size:11px}
+.tracking-table th{background:#edf3f8;color:#334b63}
+.tracking-table td{background:#fff}
+footer{color:#8290a0;font-size:10px;padding-top:18px}
+@media(max-width:700px){
+  .wrap{padding:18px 11px 32px}
+  header{padding:8px 3px 18px}
+  .panel{padding:15px;margin-bottom:12px;border-radius:11px}
+  .panel h2{font-size:15px}
+  .actions,.file-actions{gap:7px}
+  .actions button,.file-actions button{flex:1 1 auto}
+  .red-row,.exclude-row,.export-row{align-items:flex-start;padding:10px}
+  .red-row strong,.exclude-row strong,.export-row strong{font-size:12px}
+  #output{min-height:240px}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{transition:none!important;animation:none!important}
+}
