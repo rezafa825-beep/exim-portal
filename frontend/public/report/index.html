@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WhatsApp Report Generator | REZA SYSTEM</title>
-  <link rel="stylesheet" href="style.css?v=20261126-enterprise2">
+  <link rel="stylesheet" href="style.css?v=20261126-accessibility1">
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -22,7 +22,7 @@
         <button id="clearFilesBtn" type="button" class="secondary" disabled>Hapus Semua File</button>
       </div>
       <div id="uploadedFiles" class="uploaded-files empty">Belum ada file Excel yang ditambahkan.</div>
-      <p id="fileStatus" class="hint">Pilih banyak file sekaligus (tahan Ctrl atau Shift saat memilih). Anda juga bisa menambah file lagi kapan saja; file dengan isi yang sama dilewati otomatis. File diproses di browser ini; jangan unggah file Excel perusahaan ke repository GitHub.</p>
+      <p id="fileStatus" class="hint" role="status" aria-live="polite">Pilih banyak file sekaligus (tahan Ctrl atau Shift saat memilih). Anda juga bisa menambah file lagi kapan saja; file dengan isi yang sama dilewati otomatis. File diproses di browser ini; jangan unggah file Excel perusahaan ke repository GitHub.</p>
     </section>
     <section class="panel">
       <h2>2. Filter laporan</h2>
@@ -61,20 +61,20 @@
         </div>
         <input id="redSearch" type="search" placeholder="Cari nomor / nama pihak" aria-label="Cari nomor atau nama pihak">
       </div>
-      <div id="redList" class="red-list empty">Unggah Excel untuk menampilkan daftar dokumen.</div>
+      <div id="redList" class="red-list empty" role="region" aria-label="Daftar dokumen untuk pengaturan jalur">Unggah Excel untuk menampilkan daftar dokumen.</div>
       <label for="redManual">Nomor daftar jalur MERAH secara manual</label>
       <textarea id="redManual" rows="3" placeholder="Masukkan nomor daftar, pisahkan dengan koma, titik koma, atau baris baru. Contoh: 024864, 024875"></textarea>
-      <p id="redStatus" class="hint" aria-live="polite">Belum ada nomor daftar jalur merah manual.</p>
+      <p id="redStatus" class="hint" role="status" aria-live="polite" aria-live="polite">Belum ada nomor daftar jalur merah manual.</p>
     </section>
     <section class="panel">
       <h2>4. Pengecualian nomor daftar</h2>
       <p class="hint">Centang nomor daftar yang tidak ingin dimasukkan ke laporan, atau ketik nomor secara manual. Pemilihan ini tidak menghapus data Excel.</p>
       <label for="excludeSearch">Cari nomor daftar / nama pihak</label>
       <input id="excludeSearch" type="search" placeholder="Cari nomor daftar atau nama pihak">
-      <div id="excludeList" class="exclude-list empty">Unggah Excel untuk menampilkan nomor daftar.</div>
+      <div id="excludeList" class="exclude-list empty" role="region" aria-label="Daftar dokumen yang dapat dikecualikan">Unggah Excel untuk menampilkan nomor daftar.</div>
       <label for="excludeManual">Nomor daftar yang dikecualikan secara manual</label>
       <textarea id="excludeManual" rows="3" placeholder="Masukkan nomor daftar, pisahkan dengan koma atau baris baru. Contoh: 023537, 023640"></textarea>
-      <p id="excludeStatus" class="hint" aria-live="polite">Belum ada nomor daftar yang dikecualikan.</p>
+      <p id="excludeStatus" class="hint" role="status" aria-live="polite" aria-live="polite">Belum ada nomor daftar yang dikecualikan.</p>
     </section>
     <section class="panel">
       <div class="section-title">
@@ -88,26 +88,26 @@
         <button id="selectAllExportBtn" type="button" class="secondary" disabled>Pilih Semua Hasil Filter</button>
         <button id="clearExportSelectionBtn" type="button" class="secondary" disabled>Kosongkan Pilihan</button>
       </div>
-      <div id="exportList" class="export-list empty">Unggah Excel untuk menampilkan dokumen.</div>
-      <p id="exportSelectionStatus" class="hint" aria-live="polite">0 dokumen dipilih untuk ekspor.</p>
+      <div id="exportList" class="export-list empty" role="region" aria-label="Daftar dokumen untuk ekspor Excel">Unggah Excel untuk menampilkan dokumen.</div>
+      <p id="exportSelectionStatus" class="hint" role="status" aria-live="polite" aria-live="polite">0 dokumen dipilih untuk ekspor.</p>
     </section>
     <section class="panel">
       <h2>6. Pratinjau laporan WhatsApp</h2>
       <div class="actions">
-        <button id="generateBtn" disabled>Buat / Perbarui Laporan</button>
-        <button id="copyBtn" class="secondary" disabled>Salin Laporan WhatsApp</button>
+        <button type="button" id="generateBtn" disabled>Buat / Perbarui Laporan</button>
+        <button type="button" id="copyBtn" class="secondary" disabled>Salin Laporan WhatsApp</button>
       </div>
-      <textarea id="output" rows="18" placeholder="Laporan WhatsApp akan tampil di sini..." spellcheck="false"></textarea>
-      <p id="outputStatus" class="hint" aria-live="polite"></p>
+      <textarea id="output" aria-label="Pratinjau laporan WhatsApp" aria-describedby="outputStatus" rows="18" placeholder="Laporan WhatsApp akan tampil di sini..." spellcheck="false"></textarea>
+      <p id="outputStatus" class="hint" role="status" aria-live="polite" aria-live="polite"></p>
     </section>
     <section class="panel" id="excelExportPanel">
       <h2>7. Copy Data Excel / Export Excel</h2>
       <p class="hint">Fitur terpisah dari laporan WhatsApp. Menggunakan dokumen yang dicentang pada bagian 5 dan mengikuti filter yang sedang aktif.</p>
       <div class="actions">
-        <button id="copyExcelBtn" class="secondary" disabled>Copy Data Excel</button>
-        <button id="exportBtn" class="secondary" disabled>Export Excel</button>
+        <button type="button" id="copyExcelBtn" class="secondary" disabled>Copy Data Excel</button>
+        <button type="button" id="exportBtn" class="secondary" disabled>Export Excel</button>
       </div>
-      <p id="excelExportStatus" class="hint" aria-live="polite">Pilih dokumen pada bagian 5 untuk mengaktifkan fitur ini.</p>
+      <p id="excelExportStatus" class="hint" role="status" aria-live="polite" aria-live="polite">Pilih dokumen pada bagian 5 untuk mengaktifkan fitur ini.</p>
     </section>
     <section class="panel" id="trackingPanel">
       <h2>8. Tracking BC 4.0</h2>
@@ -116,8 +116,8 @@
         <button id="copyTrackingBtn" type="button" class="secondary" disabled>Copy Data Tracking</button>
         <button id="exportTrackingBtn" type="button" class="secondary" disabled>Export Tracking Excel</button>
       </div>
-      <div id="trackingPreview" class="tracking-preview empty">Pilih jenis dokumen BC 4.0 dan centang dokumen pada bagian 5 untuk menampilkan data tracking.</div>
-      <p id="trackingStatus" class="hint" aria-live="polite"></p>
+      <div id="trackingPreview" class="tracking-preview empty" role="region" aria-label="Pratinjau tracking BC 4.0">Pilih jenis dokumen BC 4.0 dan centang dokumen pada bagian 5 untuk menampilkan data tracking.</div>
+      <p id="trackingStatus" class="hint" role="status" aria-live="polite" aria-live="polite"></p>
     </section>
     <footer>Pemrosesan Excel dilakukan di browser · Periksa hasil sebelum dikirim.</footer>
   </main>
