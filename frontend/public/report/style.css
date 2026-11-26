@@ -21,3 +21,9 @@ footer{font-size:12px;color:#7a8494;text-align:center;padding:12px}
 .export-row .meta{display:flex;flex-direction:column;gap:3px;min-width:0}
 .export-row strong{font-size:14px}
 .export-row small{font-size:12px;color:#697588;overflow-wrap:anywhere}
+
+.tracking-preview{overflow:auto;max-height:420px;border:1px solid #e2e7ee;border-radius:9px;margin-top:12px}
+.tracking-table{border-collapse:collapse;width:100%;font-size:12px;white-space:nowrap}
+.tracking-table th,.tracking-table td{border:1px solid #e2e7ee;padding:9px 10px;text-align:left;vertical-align:top}
+.tracking-table th{background:#f1f4f8;position:sticky;top:0;z-index:1}
+#trackingPanel[hidden]{display:none}
