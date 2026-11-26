@@ -187,3 +187,61 @@
  .home-card,.portal-side-menu button{transition:none}
  .home-card:hover{transform:none}
 }
+
+
+/* REZA SYSTEM Modern Enterprise Design System — Phase 2: compact module navigation */
+.portal-stage .shell>aside{
+  flex:0 0 78px;
+  width:78px;
+  min-height:100vh;
+  padding:22px 9px;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+}
+.portal-stage .shell .brand,
+.portal-stage .shell .brand-sub,
+.portal-stage .shell .side-note{display:none}
+.portal-stage .shell nav{gap:9px;margin-top:8px}
+.portal-stage .shell nav button{
+  min-height:48px;
+  justify-content:center;
+  gap:0;
+  padding:10px 6px;
+  border:1px solid transparent;
+  border-radius:10px;
+  color:#617286;
+  font-size:0;
+}
+.portal-stage .shell nav button span:first-child{
+  display:grid;
+  place-items:center;
+  width:24px;
+  height:24px;
+  font-size:19px;
+  line-height:1;
+}
+.portal-stage .shell nav button .validation-nav-text{display:none}
+.portal-stage .shell nav button.active{
+  background:var(--rs-blue-soft);
+  border-color:#d8e4f0;
+  color:var(--rs-navy);
+  box-shadow:inset 3px 0 var(--rs-blue);
+}
+.portal-stage .shell nav button:focus-visible{
+  outline:3px solid #93c5fd;
+  outline-offset:2px;
+}
+.portal-stage .shell>main{
+  width:calc(100% - 78px);
+  padding:30px clamp(18px,3vw,42px);
+}
+@media(max-width:900px){
+  .portal-stage .shell>aside{flex-basis:68px;width:68px;padding:20px 7px}
+  .portal-stage .shell>main{width:calc(100% - 68px);padding:24px 18px}
+}
+@media(max-width:620px){
+  .portal-stage .shell>aside{flex-basis:58px;width:58px;padding:16px 5px}
+  .portal-stage .shell>main{width:calc(100% - 58px);padding:18px 10px}
+  .portal-stage .shell nav button{min-height:44px}
+}
