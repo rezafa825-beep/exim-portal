@@ -1425,3 +1425,10 @@ body{background:var(--rs-canvas);color:var(--rs-ink)}
 @media(prefers-reduced-motion:reduce){
   .portal-side-menu button,.home-card,.home-go span{transition:none!important}
 }
+
+
+/* V2 QA polish: override legacy portal width constraints and mobile iframe sizing */
+.portal-stage .portal-home{max-width:none;margin:0}
+@media(max-width:760px){
+  .portal-stage .portal-report{height:calc(100vh - 236px);min-height:420px}
+}
