@@ -519,6 +519,13 @@ function getExcelReportRows() {
     }));
 }
 const TRACKING_HEADERS = ["NO","NO AJU","NO DAFTAR","TANGGAL MASUK","NAMA PT","BARANG","KEMASAN","SATUAN","TUJUAN PENGIRIMAN BARANG"];
+const TRACKING_DAY_NAMES = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
+function trackingDateText(value) {
+  const date = excelDate(value);
+  if (!date) return "";
+  const day = TRACKING_DAY_NAMES[date.getDay()];
+  return `${day}, ${dateText(date)}`;
+}
 function getTrackingRows() {
   if ($("docType").value !== "40-in") return [];
   const partyFilter = $("partyName").value;
@@ -533,12 +540,12 @@ function getTrackingRows() {
       "NO": index + 1,
       "NO AJU": String(r.aju ?? ""),
       "NO DAFTAR": String(r.regNo ?? ""),
-      "TANGGAL MASUK": dateText(r.regDate),
+      "TANGGAL MASUK": trackingDateText(r.regDate),
       "NAMA PT": r.supplierName || r.partyName || "",
-      "BARANG": sumMap(r.quantities),
+      "BARANG": "",
       "KEMASAN": packageText(r.packages),
-      "SATUAN": [...r.quantities.entries()].filter(([,v]) => v !== 0).map(([unit]) => unit).join(" + ") || "-",
-      "TUJUAN PENGIRIMAN BARANG": r.purpose || "-"
+      "SATUAN": sumMap(r.quantities),
+      "TUJUAN PENGIRIMAN BARANG": r.purposeCode || "-"
     }));
 }
 function renderTrackingPreview() {
