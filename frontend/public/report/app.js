@@ -197,8 +197,7 @@ function currentPartyLabelMode() {
 // Pisahkan input banyak nomor (baris baru, koma, titik koma), buang spasi tepi
 // dan nomor kosong, lalu hilangkan duplikat.
 function parseNumberList(text) {
-  return new Set(norm(text).split(/[\r
-,;]+/).map(s => key(s)).filter(Boolean));
+  return new Set(norm(text).split(/[\r\n,;]+/).map(s => key(s)).filter(Boolean));
 }
 function manualExcludedNumbers() {
   return parseNumberList($("excludeManual").value);
@@ -446,8 +445,7 @@ function buildReport() {
     output.push(`${headerDateLabel(type.value)} : ${movementDate}`);
     output.push("");
   }
-  return output.join("
-").trim();
+  return output.join("\n").trim();
 }
 function updateOutput() {
   if (records.length && !$ ("generateBtn").disabled) $("output").value = buildReport();
@@ -580,24 +578,26 @@ function renderTrackingPreview() {
   $("trackingStatus").textContent = `${rows.length} dokumen BC 4.0 siap disalin atau diekspor.`;
 }
 async function copyTrackingReport() {
-  const rows=getTrackingRows();
+  const rows = getTrackingRows();
   if (!rows.length) return;
-  const lines=[TRACKING_HEADERS,...rows.map(r=>TRACKING_HEADERS.map(h=>r[h]))];
-  const tsv=lines.map((line,i)=>line.map((v,col)=>{
-    const value=String(v ?? "").replace(/\\t/g," ").replace(/\\r?\
-/g," ");
-    return i>0 && [1,2].includes(col) ? `'${value}` : value;
-  }).join("\\t")).join("\
-");
+  const lines = [TRACKING_HEADERS, ...rows.map(r => TRACKING_HEADERS.map(h => r[h]))];
+  const tsv = lines.map((line, i) => line.map((v, col) => {
+    const value = String(v ?? "").replace(/[\t\r\n]/g, " ");
+    return i > 0 && [1, 2].includes(col) ? "'" + value : value;
+  }).join("\t")).join("\n");
   try {
     await navigator.clipboard.writeText(tsv);
-    $("trackingStatus").textContent="Data tracking berhasil disalin. Tempelkan ke Excel mulai dari sel A1.";
+    $("trackingStatus").textContent = "Data tracking berhasil disalin. Tempelkan ke Excel mulai dari sel A1.";
   } catch {
-    const area=document.createElement("textarea");
-    area.value=tsv; area.style.position="fixed"; area.style.opacity="0";
-    document.body.append(area); area.select();
-    const ok=document.execCommand("copy"); area.remove();
-    $("trackingStatus").textContent=ok ? "Data tracking berhasil disalin. Tempelkan ke Excel mulai dari sel A1." : "Clipboard tidak diizinkan browser. Periksa izin clipboard.";
+    const area = document.createElement("textarea");
+    area.value = tsv;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.append(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    $("trackingStatus").textContent = ok ? "Data tracking berhasil disalin. Tempelkan ke Excel mulai dari sel A1." : "Clipboard tidak diizinkan browser. Periksa izin clipboard.";
   }
 }
 function exportTrackingReport() {
@@ -632,22 +632,21 @@ async function copyExcelReport() {
   const rows = getExcelReportRows();
   if (!rows.length) return;
   const headers = ["Jenis/Kode Dokumen","Nomor AJU","Nomor Daftar","Tanggal Daftar","Tanggal Keluar","Nama Customer"];
-  const safe = value => String(value ?? "").replace(/\t/g," ").replace(/\r?
-/g," ");
   const lines = [headers, ...rows.map(r => headers.map(h => r[h]))];
   const tsv = lines.map((line, i) => line.map((v, col) => {
-    const value = safe(v);
-    return i > 0 && (col === 1 || col === 2) ? `'${value}` : value;
-  }).join("\t")).join("
-");
+    const value = String(v ?? "").replace(/[\t\r\n]/g, " ");
+    return i > 0 && (col === 1 || col === 2) ? "'" + value : value;
+  }).join("\t")).join("\n");
   try {
     await navigator.clipboard.writeText(tsv);
     $("outputStatus").textContent = "Data Excel berhasil disalin. Tempelkan ke Excel mulai dari sel A1.";
   } catch {
     const area = document.createElement("textarea");
     area.value = tsv;
-    area.style.position = "fixed"; area.style.opacity = "0";
-    document.body.append(area); area.select();
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.append(area);
+    area.select();
     const ok = document.execCommand("copy");
     area.remove();
     $("outputStatus").textContent = ok ? "Data Excel berhasil disalin. Tempelkan ke Excel mulai dari sel A1." : "Browser tidak mengizinkan salin otomatis. Periksa izin clipboard browser.";
@@ -730,8 +729,7 @@ $("excelFile").addEventListener("change", async (event) => {
   if (skipped.length) summary.push(`Dilewati (${skipped.length} file): ${skipped.join("; ")}.`);
   if (errors.length) summary.push(`Gagal dibaca (${errors.length} file):`, ...errors.map(e => `\u2022 ${e}`));
   summary.push(`Total saat ini: ${uploadedFiles.size} file, ${records.length} dokumen.`);
-  $("fileStatus").textContent = summary.join("
-");
+  $("fileStatus").textContent = summary.join("\n");
   input.value = ""; // izinkan memilih ulang nama file yang sama bila diperlukan
 });
 $("clearFilesBtn").addEventListener("click",()=>{
