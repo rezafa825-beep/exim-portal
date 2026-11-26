@@ -646,7 +646,7 @@ async function copyExcelReport() {
   }).join("\t")).join("\n");
   try {
     await navigator.clipboard.writeText(tsv);
-    $("outputStatus").textContent = "Data Excel berhasil disalin. Tempelkan ke Excel mulai dari sel A1.";
+    $("excelExportStatus").textContent = "Data Excel berhasil disalin. Tempelkan ke Excel mulai dari sel A1.";
   } catch {
     const area = document.createElement("textarea");
     area.value = tsv;
@@ -656,7 +656,7 @@ async function copyExcelReport() {
     area.select();
     const ok = document.execCommand("copy");
     area.remove();
-    $("outputStatus").textContent = ok ? "Data Excel berhasil disalin. Tempelkan ke Excel mulai dari sel A1." : "Browser tidak mengizinkan salin otomatis. Periksa izin clipboard browser.";
+    $("excelExportStatus").textContent = ok ? "Data Excel berhasil disalin. Tempelkan ke Excel mulai dari sel A1." : "Browser tidak mengizinkan salin otomatis. Periksa izin clipboard browser.";
   }
 }
 function exportExcelReport() {
@@ -668,7 +668,7 @@ function exportExcelReport() {
   const datePart = ($("movementDate").value || dateInputToday()).replace(/-/g, "");
   const type = $("docType").value || "laporan";
   XLSX.writeFile(wb, `Laporan_EXIM_${type}_${datePart}.xlsx`);
-  $("outputStatus").textContent = "File Excel berhasil dibuat.";
+  $("excelExportStatus").textContent = "File Excel berhasil dibuat.";
 }
 function refreshAll() {
   refreshPartyOptions();
@@ -744,7 +744,7 @@ $("clearFilesBtn").addEventListener("click",()=>{
   $("excludeManual").value=""; $("redManual").value=""; $("docType").disabled=true; $("partyMode").disabled=true; $("partyName").disabled=true;
   $("generateBtn").disabled=true; $("copyBtn").disabled=true;
   $("copyExcelBtn").disabled=true; $("exportBtn").disabled=true;
-  $("copyTrackingBtn").disabled=true; $("exportTrackingBtn").disabled=true; $("trackingPanel").hidden=true; $("trackingPreview").textContent="Unggah Excel untuk menampilkan data tracking.";
+  $("copyTrackingBtn").disabled=true; $("exportTrackingBtn").disabled=true; $("trackingPanel").hidden=true; $("trackingPreview").textContent="Unggah Excel untuk menampilkan data tracking."; $("excelExportStatus").textContent="Pilih dokumen pada bagian 5 untuk mengaktifkan fitur ini.";
   $("exportList").className="export-list empty"; $("exportList").textContent="Unggah Excel untuk menampilkan dokumen.";
   $("exportSelectionStatus").textContent="0 dokumen dipilih untuk ekspor.";
   $("docType").innerHTML='<option value="">Unggah Excel terlebih dahulu</option>';
