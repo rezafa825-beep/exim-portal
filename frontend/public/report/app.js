@@ -782,3 +782,4 @@ $("copyBtn").addEventListener("click",async()=>{
 $("movementDate").value = dateInputToday();
 updateExcludeStatus();
 updateRedStatus();
+renderTrackingPreview();
