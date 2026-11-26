@@ -100,3 +100,90 @@
 .bc27-workflow-current{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:13px;padding:10px 12px;border-radius:8px;background:#f5f7fa;color:#52616d;font-size:11px}
 .bc27-workflow-current .bc27-secondary{margin-left:auto;padding:8px 11px}
 @media(max-width:700px){.bc27-workflow-options{grid-template-columns:1fr}.bc27-workflow-current{align-items:flex-start;flex-direction:column}.bc27-workflow-current .bc27-secondary{margin-left:0;width:100%}}
+
+
+/* REZA SYSTEM Modern Enterprise Design System — Phase 1 */
+:root{
+  --rs-navy:#17365d;
+  --rs-blue:#315c84;
+  --rs-blue-soft:#eaf1f8;
+  --rs-page:#f4f6f9;
+  --rs-surface:#ffffff;
+  --rs-border:#e2e8f0;
+  --rs-text:#243447;
+  --rs-muted:#64748b;
+  --rs-success:#23814a;
+  --rs-warning:#a66b16;
+  --rs-danger:#b42318;
+  --rs-radius:12px;
+  --rs-shadow:0 4px 16px rgba(23,54,93,.055);
+}
+.portal-root{background:var(--rs-page);color:var(--rs-text)}
+.portal-sidebar{background:var(--rs-navy);box-shadow:2px 0 16px rgba(15,35,58,.09)}
+.portal-sidebar-brand{min-height:78px}
+.portal-sidebar-brand:focus-visible,.portal-side-menu button:focus-visible,.home-card:focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+.portal-side-menu{gap:5px;padding:14px 10px}
+.portal-side-menu button{min-height:44px;border-radius:8px;transition:background .15s ease,color .15s ease}
+.portal-side-menu button.selected{background:rgba(255,255,255,.18);box-shadow:inset 3px 0 #fff}
+.portal-side-menu button.menu-disabled{opacity:.55}
+.portal-nav-label{padding:5px 12px 3px;color:#a9bfd6;font-size:9px;font-weight:800;letter-spacing:1.25px}
+.portal-nav-label-secondary{margin-top:13px}
+.sidebar-collapsed .portal-nav-label{display:none}
+.portal-stage{background:var(--rs-page)}
+.portal-stage .shell>main{padding:28px 34px}
+.portal-stage .shell>aside{background:#fff;color:var(--rs-text);border-right:1px solid var(--rs-border);box-shadow:none}
+.portal-stage .shell .brand{color:var(--rs-navy)}
+.portal-stage .shell .brand span{color:var(--rs-blue)}
+.portal-stage .shell .brand-sub{color:#8291a2}
+.portal-stage .shell nav button{color:#526477}
+.portal-stage .shell nav button.active,.portal-stage .shell nav button:hover{background:var(--rs-blue-soft);color:var(--rs-navy)}
+.portal-stage .shell .side-note{color:#8492a2}
+.portal-stage .shell .side-note b{color:var(--rs-blue)}
+.portal-stage .shell .top h1{color:var(--rs-navy);font-size:26px;letter-spacing:-.35px}
+.portal-stage .shell .eyebrow{color:var(--rs-muted);letter-spacing:1.25px}
+.portal-stage .shell .card{border-color:var(--rs-border);border-radius:var(--rs-radius);box-shadow:var(--rs-shadow)}
+.portal-stage .shell .primary{background:var(--rs-navy)}
+.portal-stage .shell .primary:hover:not(:disabled){background:#214a78}
+.portal-stage .shell .secondary{background:#edf1f5;color:#34495b}
+.portal-home{max-width:1240px;padding:42px 34px 28px}
+.home-welcome{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:28px 30px;margin-bottom:32px;background:linear-gradient(115deg,#fff 0%,#f8fbff 100%);border:1px solid var(--rs-border);border-radius:16px;box-shadow:var(--rs-shadow)}
+.home-eyebrow{font-size:10px;font-weight:800;letter-spacing:1.45px;color:var(--rs-blue)}
+.home-welcome h1{margin:10px 0 5px;color:var(--rs-navy);font-size:27px;letter-spacing:-.65px;line-height:1.25}
+.home-welcome .home-slogan{margin:0;color:var(--rs-muted);font-size:14px;font-style:normal}
+.home-welcome-mark{display:grid;place-items:center;flex:0 0 66px;width:66px;height:66px;border-radius:16px;background:var(--rs-navy);color:#fff;font-size:21px;font-weight:900;letter-spacing:1px}
+.home-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:0 0 15px}
+.home-section-head h2{margin:0;color:var(--rs-text);font-size:18px;letter-spacing:-.2px}
+.home-section-head p{margin:5px 0 0;color:var(--rs-muted);font-size:12px}
+.home-module-count{padding:6px 10px;border:1px solid var(--rs-border);border-radius:999px;background:#fff;color:var(--rs-muted);font-size:10px;font-weight:700;white-space:nowrap}
+.portal-home .home-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.home-card{min-height:206px;padding:20px 21px;border:1px solid var(--rs-border);border-radius:13px;box-shadow:var(--rs-shadow);transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
+.home-card:hover:not(.home-card-disabled),.home-card:focus-visible:not(.home-card-disabled){transform:translateY(-2px);border-color:#b6c9dc;box-shadow:0 9px 24px rgba(23,54,93,.09)}
+.home-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;margin-bottom:14px}
+.home-icon{width:40px;height:40px;margin:0;border-radius:10px;background:var(--rs-blue-soft);color:var(--rs-navy);font-size:19px}
+.home-card h3{margin:0 0 7px;color:var(--rs-navy);font-size:16px;line-height:1.4}
+.home-card p{margin:0 0 17px;color:#64748b;font-size:12px;line-height:1.65}
+.home-card-status{padding:5px 8px;border-radius:999px;font-size:9px;font-weight:800;white-space:nowrap}
+.home-card-status.active{background:#eaf5ee;color:var(--rs-success)}
+.home-card-status.planned{background:#f1f3f6;color:#64748b}
+.home-go{display:flex;align-items:center;gap:6px;margin-top:auto;color:var(--rs-blue);font-size:12px;font-weight:800}
+.home-foot{margin-top:28px;color:#8290a0;font-size:10px}
+.home-foot span{padding:0 4px;color:#b0bac5}
+.home-card-disabled{background:#fafbfc;border-style:dashed}
+.home-card-disabled .home-icon{background:#f0f2f5;color:#8290a0}
+@media(max-width:900px){
+ .portal-home{padding:28px 20px}
+ .portal-stage .shell>main{padding:24px 20px}
+}
+@media(max-width:620px){
+ .home-welcome{padding:21px 18px;margin-bottom:25px}
+ .home-welcome h1{font-size:22px}
+ .home-welcome-mark{flex-basis:52px;width:52px;height:52px;font-size:17px}
+ .home-section-head{align-items:flex-start;flex-direction:column}
+ .portal-home .home-cards{grid-template-columns:1fr}
+ .home-card{min-height:0;padding:18px}
+ .portal-stage .shell>main{padding:18px 12px}
+}
+@media(prefers-reduced-motion:reduce){
+ .home-card,.portal-side-menu button{transition:none}
+ .home-card:hover{transform:none}
+}
