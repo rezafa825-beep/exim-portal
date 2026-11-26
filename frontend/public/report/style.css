@@ -175,3 +175,36 @@ input[type=file]{min-height:42px;max-width:100%}
   button:focus-visible,input:focus-visible,select:focus-visible,
   textarea:focus-visible{outline:2px solid Highlight}
 }
+
+
+/* REZA SYSTEM — WhatsApp Report V2 visual workspace */
+:root{--report-navy:#163956;--report-blue:#28647c;--report-teal:#167f83;--report-border:#e0e8ef;--report-muted:#74869a}
+html,body{background:#f2f5f9;color:#21384f}
+.wrap{max-width:1440px;padding:30px clamp(16px,3vw,46px) 56px;counter-reset:report-step}
+.wrap>header{position:relative;overflow:hidden;margin:0 0 22px;padding:27px 30px 29px;border:1px solid #214b6a;border-radius:17px;background:radial-gradient(circle at 88% 15%,rgba(115,190,185,.2),transparent 26%),linear-gradient(115deg,#153754,#1d4b6b 65%,#1a5965);box-shadow:0 12px 28px rgba(22,57,86,.13)}
+.wrap>header:after{content:"";position:absolute;width:230px;height:230px;right:7%;top:-165px;border:1px solid rgba(255,255,255,.14);border-radius:50%;box-shadow:0 0 0 30px rgba(255,255,255,.025),0 0 0 60px rgba(255,255,255,.02)}
+.wrap>header .eyebrow{position:relative;z-index:1;color:#b9d6e5;font-size:9px;letter-spacing:1.7px}
+.wrap>header h1{position:relative;z-index:1;margin:8px 0 9px;color:#fff;font-size:clamp(25px,3vw,34px);letter-spacing:-.65px}
+.wrap>header .sub{position:relative;z-index:1;color:#d1e1eb;font-size:12px;max-width:760px}
+.panel{counter-increment:report-step;position:relative;border:1px solid var(--report-border);border-radius:13px;padding:21px 22px;margin:0 0 13px;box-shadow:0 4px 16px rgba(23,48,76,.035)}
+.panel h2{display:flex;align-items:center;gap:11px;margin:0 0 15px;color:#1b3b57;font-size:14px;font-weight:800;letter-spacing:-.2px}
+.panel h2:before{content:counter(report-step,decimal-leading-zero);display:grid;place-items:center;flex:0 0 29px;width:29px;height:29px;border:1px solid #dce8ef;border-radius:8px;background:#eff5f8;color:#38677e;font-size:9px;font-weight:900;letter-spacing:.2px}
+.panel label{color:#405970;font-size:11px;font-weight:750}
+.panel input,.panel select,.panel textarea{border:1px solid #d4dfe8;border-radius:8px;background:#fbfcfd;color:#263d53;font-size:12px}
+.panel input:focus-visible,.panel select:focus-visible,.panel textarea:focus-visible{outline:3px solid rgba(42,119,145,.14);border-color:#6e9eae}
+.panel .hint{color:#7b8c9d;font-size:10px;line-height:1.65}
+.actions,.file-actions{gap:8px}
+button{border-radius:8px;background:#1b4e70;font-size:10px;letter-spacing:.3px}
+button:hover:not(:disabled){background:#28647c}
+button.secondary{border:1px solid #dce5ed;background:#f1f5f8;color:#405a72}
+button.secondary:hover:not(:disabled){background:#e7eff4}
+.uploaded-file,.red-row,.exclude-row,.export-row{border:1px solid #e3eaf0;border-radius:9px;background:#fafcfd}
+.red-row:hover,.exclude-row:hover,.export-row:hover{border-color:#b6cbd6;background:#f4f9fa}
+.red-flag{border-radius:6px;background:#fff2ef;color:#a94c3e}
+#output{border-color:#dce6ed;background:#f9fbfc}
+#excelExportPanel{border-top:3px solid #668da5}
+#trackingPanel{border-top:3px solid #6c9d9b}
+.tracking-preview{border-color:#dfe7ee}
+.tracking-table th{background:#edf3f7;color:#405a72}
+footer{border-top:1px solid #e2e9ef;margin-top:18px;padding-top:17px;color:#8998a8;font-size:10px}
+@media(max-width:640px){.wrap{padding:16px 11px 35px}.wrap>header{padding:22px 18px;border-radius:13px}.panel{padding:15px;border-radius:11px}.panel h2{font-size:13px}}
