@@ -197,7 +197,8 @@ function currentPartyLabelMode() {
 // Pisahkan input banyak nomor (baris baru, koma, titik koma), buang spasi tepi
 // dan nomor kosong, lalu hilangkan duplikat.
 function parseNumberList(text) {
-  return new Set(norm(text).split(/[\r\n,;]+/).map(s => key(s)).filter(Boolean));
+  return new Set(norm(text).split(/[\r
+,;]+/).map(s => key(s)).filter(Boolean));
 }
 function manualExcludedNumbers() {
   return parseNumberList($("excludeManual").value);
@@ -353,6 +354,7 @@ function removeUploadedFile(fileId) {
     $("fileStatus").textContent = `${uploadedFiles.size} file tersisa, ${records.length} dokumen dibaca.`;
   }
   renderUploadedFiles(); updateExcludeStatus(); updateRedStatus();
+renderTrackingPreview();
 }
 // Satu nomor aju hanya dipakai satu kali (file/record pertama menang), supaya
 // dokumen yang sama dari file berbeda tidak terhitung dua kali. Dihitung ulang
@@ -444,7 +446,8 @@ function buildReport() {
     output.push(`${headerDateLabel(type.value)} : ${movementDate}`);
     output.push("");
   }
-  return output.join("\n").trim();
+  return output.join("
+").trim();
 }
 function updateOutput() {
   if (records.length && !$ ("generateBtn").disabled) $("output").value = buildReport();
@@ -496,6 +499,7 @@ function renderExportList() {
   $("clearExportSelectionBtn").disabled = !count;
   $("copyExcelBtn").disabled = !count;
   $("exportBtn").disabled = !count;
+  renderTrackingPreview();
 }
 function getExcelReportRows() {
   const type = DOC_TYPES.find(x => x.value === $("docType").value);
@@ -580,9 +584,11 @@ async function copyTrackingReport() {
   if (!rows.length) return;
   const lines=[TRACKING_HEADERS,...rows.map(r=>TRACKING_HEADERS.map(h=>r[h]))];
   const tsv=lines.map((line,i)=>line.map((v,col)=>{
-    const value=String(v ?? "").replace(/\\t/g," ").replace(/\\r?\\n/g," ");
+    const value=String(v ?? "").replace(/\\t/g," ").replace(/\\r?\
+/g," ");
     return i>0 && [1,2].includes(col) ? `'${value}` : value;
-  }).join("\\t")).join("\\n");
+  }).join("\\t")).join("\
+");
   try {
     await navigator.clipboard.writeText(tsv);
     $("trackingStatus").textContent="Data tracking berhasil disalin. Tempelkan ke Excel mulai dari sel A1.";
@@ -626,12 +632,14 @@ async function copyExcelReport() {
   const rows = getExcelReportRows();
   if (!rows.length) return;
   const headers = ["Jenis/Kode Dokumen","Nomor AJU","Nomor Daftar","Tanggal Daftar","Tanggal Keluar","Nama Customer"];
-  const safe = value => String(value ?? "").replace(/\t/g," ").replace(/\r?\n/g," ");
+  const safe = value => String(value ?? "").replace(/\t/g," ").replace(/\r?
+/g," ");
   const lines = [headers, ...rows.map(r => headers.map(h => r[h]))];
   const tsv = lines.map((line, i) => line.map((v, col) => {
     const value = safe(v);
     return i > 0 && (col === 1 || col === 2) ? `'${value}` : value;
-  }).join("\t")).join("\n");
+  }).join("\t")).join("
+");
   try {
     await navigator.clipboard.writeText(tsv);
     $("outputStatus").textContent = "Data Excel berhasil disalin. Tempelkan ke Excel mulai dari sel A1.";
@@ -722,14 +730,16 @@ $("excelFile").addEventListener("change", async (event) => {
   if (skipped.length) summary.push(`Dilewati (${skipped.length} file): ${skipped.join("; ")}.`);
   if (errors.length) summary.push(`Gagal dibaca (${errors.length} file):`, ...errors.map(e => `\u2022 ${e}`));
   summary.push(`Total saat ini: ${uploadedFiles.size} file, ${records.length} dokumen.`);
-  $("fileStatus").textContent = summary.join("\n");
+  $("fileStatus").textContent = summary.join("
+");
   input.value = ""; // izinkan memilih ulang nama file yang sama bila diperlukan
 });
 $("clearFilesBtn").addEventListener("click",()=>{
   uploadedFiles.clear(); records=[]; redNumbers.clear(); excludedNumbers.clear(); exportSelected.clear();
   $("excludeManual").value=""; $("redManual").value=""; $("docType").disabled=true; $("partyMode").disabled=true; $("partyName").disabled=true;
   $("generateBtn").disabled=true; $("copyBtn").disabled=true;
-  $("copyExcelBtn").disabled=true; $("exportBtn").disabled=true;\n  $("copyTrackingBtn").disabled=true; $("exportTrackingBtn").disabled=true; $("trackingPanel").hidden=true; $("trackingPreview").textContent="Unggah Excel untuk menampilkan data tracking.";
+  $("copyExcelBtn").disabled=true; $("exportBtn").disabled=true;
+  $("copyTrackingBtn").disabled=true; $("exportTrackingBtn").disabled=true; $("trackingPanel").hidden=true; $("trackingPreview").textContent="Unggah Excel untuk menampilkan data tracking.";
   $("exportList").className="export-list empty"; $("exportList").textContent="Unggah Excel untuk menampilkan dokumen.";
   $("exportSelectionStatus").textContent="0 dokumen dipilih untuk ekspor.";
   $("docType").innerHTML='<option value="">Unggah Excel terlebih dahulu</option>';
@@ -759,7 +769,9 @@ $("clearExportSelectionBtn").addEventListener("click",()=>{
   renderExportList();
 });
 $("copyExcelBtn").addEventListener("click",copyExcelReport);
-$("exportBtn").addEventListener("click",exportExcelReport);\n$("copyTrackingBtn").addEventListener("click",copyTrackingReport);\n$("exportTrackingBtn").addEventListener("click",exportTrackingReport);
+$("exportBtn").addEventListener("click",exportExcelReport);
+$("copyTrackingBtn").addEventListener("click",copyTrackingReport);
+$("exportTrackingBtn").addEventListener("click",exportTrackingReport);
 $("redManual").addEventListener("input",()=>{updateRedStatus(); if(records.length){renderRedList(); $("output").value=buildReport();}});
 $("excludeManual").addEventListener("input",()=>{updateExcludeStatus(); if(records.length)$("output").value=buildReport();});
 $("generateBtn").addEventListener("click",()=>{$("output").value=buildReport();$("outputStatus").textContent="Laporan diperbarui. Periksa isi sebelum dikirim.";});
