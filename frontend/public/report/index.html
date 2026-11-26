@@ -95,15 +95,22 @@
       <h2>6. Pratinjau laporan WhatsApp</h2>
       <div class="actions">
         <button id="generateBtn" disabled>Buat / Perbarui Laporan</button>
-        <button id="copyBtn" class="secondary" disabled>Salin Laporan</button>
+        <button id="copyBtn" class="secondary" disabled>Salin Laporan WhatsApp</button>
+      </div>
+      <textarea id="output" rows="18" placeholder="Laporan WhatsApp akan tampil di sini..." spellcheck="false"></textarea>
+      <p id="outputStatus" class="hint" aria-live="polite"></p>
+    </section>
+    <section class="panel" id="excelExportPanel">
+      <h2>7. Copy Data Excel / Export Excel</h2>
+      <p class="hint">Fitur terpisah dari laporan WhatsApp. Menggunakan dokumen yang dicentang pada bagian 5 dan mengikuti filter yang sedang aktif.</p>
+      <div class="actions">
         <button id="copyExcelBtn" class="secondary" disabled>Copy Data Excel</button>
         <button id="exportBtn" class="secondary" disabled>Export Excel</button>
       </div>
-      <textarea id="output" rows="18" placeholder="Laporan akan tampil di sini..." spellcheck="false"></textarea>
-      <p id="outputStatus" class="hint" aria-live="polite"></p>
+      <p id="excelExportStatus" class="hint" aria-live="polite">Pilih dokumen pada bagian 5 untuk mengaktifkan fitur ini.</p>
     </section>
     <section class="panel" id="trackingPanel">
-      <h2>7. Tracking BC 4.0</h2>
+      <h2>8. Tracking BC 4.0</h2>
       <p class="hint">Output tambahan untuk template tracking. Menggunakan dokumen BC 4.0 yang dicentang pada bagian 5. Satu nomor AJU menjadi satu baris. Tanggal Masuk diambil dari Tanggal Daftar CEISA.</p>
       <div class="actions">
         <button id="copyTrackingBtn" type="button" class="secondary" disabled>Copy Data Tracking</button>
@@ -114,6 +121,6 @@
     </section>
     <footer>Pemrosesan Excel dilakukan di browser · Periksa hasil sebelum dikirim.</footer>
   </main>
-  <script src="app.js?v=20261126-tracking2"></script>
+  <script src="app.js?v=20261126-excelpanel1"></script>
 </body>
 </html>
