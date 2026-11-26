@@ -16,7 +16,7 @@ function Dashboard({open}){
       <div><span className="home-eyebrow">WORKSPACE · EXIM MANAGEMENT</span><h1>Selamat datang di REZA SYSTEM</h1><p className="home-slogan">Setiap kesulitan pasti ada kemudahan</p></div>
       <div className="home-welcome-mark" aria-hidden="true">RS</div>
     </section>
-    <section className="home-section-head"><div><h2>Modul kerja</h2><p>Pilih modul untuk memulai pekerjaan Anda.</p></div><span className="home-module-count">4 modul aktif</span></section>
+    <section className="home-section-head"><div><span className="home-section-kicker">YOUR WORKSPACE</span><h2>Modul kerja</h2><p>Pilih modul untuk memulai pekerjaan Anda.</p></div><span className="home-module-count"><b>04</b><span>MODUL AKTIF</span></span></section>
     <section className="home-cards">
       <button type="button" className="home-card" onClick={()=>open('validation')}><span className="home-card-top"><span className="home-icon">✓</span><span className="home-card-status active">Aktif</span></span><h3>EXIM Validation</h3><p>Cross-check Invoice, Packing List, dan Draft EXIM / CEISA secara otomatis, lengkap dengan History dan Customer Master.</p><span className="home-go">Buka modul <span aria-hidden="true">→</span></span></button>
       <button type="button" className="home-card" onClick={()=>open('report')}><span className="home-card-top"><span className="home-icon">▤</span><span className="home-card-status active">Aktif</span></span><h3>WhatsApp Report</h3><p>Buat laporan format WhatsApp dari satu atau beberapa file Excel, dengan pengaturan jalur dan pengecualian nomor daftar.</p><span className="home-go">Buka modul <span aria-hidden="true">→</span></span></button>
@@ -54,6 +54,10 @@ function App(){
       <div className="portal-sidebar-foot">Setiap kesulitan pasti ada kemudahan</div>
     </aside>
     <div className="portal-stage">
+      <header className="portal-topbar">
+        <div className="portal-topbar-context"><span className="portal-topbar-kicker">REZA SYSTEM / WORKSPACE</span><b>{({home:'Dashboard',validation:'EXIM Validation',report:'WhatsApp Report','raw-material':'Pengambilan Data Bahan Baku','bc27-monthly':'BC 2.7 Monthly Report'})[module]||'Workspace'}</b></div>
+        <div className="portal-topbar-meta"><span className="portal-live-dot"></span><span>LOCAL PROCESSING</span><i></i><span>INDONESIA · WIB</span></div>
+      </header>
       {module==='home'&&<Dashboard open={openModule}/>}
       {reportOpened&&<main className={'portal-report'+(module==='report'?'':' is-hidden')}><iframe title="WhatsApp Report Generator" src="./report/index.html?v=20261126-accessibility1"/></main>}
       <div className={'shell'+(module==='validation'?'':' is-hidden')}>
