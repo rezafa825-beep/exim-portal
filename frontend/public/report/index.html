@@ -102,6 +102,16 @@
       <textarea id="output" rows="18" placeholder="Laporan akan tampil di sini..." spellcheck="false"></textarea>
       <p id="outputStatus" class="hint" aria-live="polite"></p>
     </section>
+    <section class="panel" id="trackingPanel">
+      <h2>7. Tracking BC 4.0</h2>
+      <p class="hint">Output tambahan untuk template tracking. Menggunakan dokumen BC 4.0 yang dicentang pada bagian 5. Satu nomor AJU menjadi satu baris. Tanggal Masuk diambil dari Tanggal Daftar CEISA.</p>
+      <div class="actions">
+        <button id="copyTrackingBtn" type="button" class="secondary" disabled>Copy Data Tracking</button>
+        <button id="exportTrackingBtn" type="button" class="secondary" disabled>Export Tracking Excel</button>
+      </div>
+      <div id="trackingPreview" class="tracking-preview empty">Pilih jenis dokumen BC 4.0 dan centang dokumen pada bagian 5 untuk menampilkan data tracking.</div>
+      <p id="trackingStatus" class="hint" aria-live="polite"></p>
+    </section>
     <footer>Pemrosesan Excel dilakukan di browser · Periksa hasil sebelum dikirim.</footer>
   </main>
   <script src="app.js?v=20261119-2"></script>
