@@ -516,6 +516,100 @@ function getExcelReportRows() {
       "Nama Customer": r.reportPartyName || ""
     }));
 }
+const TRACKING_HEADERS = ["NO","NO AJU","NO DAFTAR","TANGGAL MASUK","NAMA PT","BARANG","KEMASAN","SATUAN","TUJUAN PENGIRIMAN BARANG"];
+function getTrackingRows() {
+  if ($("docType").value !== "40-in") return [];
+  const partyFilter = $("partyName").value;
+  return selectedTypeRecords()
+    .filter(r => exportSelected.has(r.recordId) && !isExcluded(r))
+    .filter(r => {
+      const party = r.supplierName || r.partyName || "";
+      return party && (partyFilter === "__ALL__" || party === partyFilter);
+    })
+    .sort((a,b) => naturalSort(a.regNo,b.regNo))
+    .map((r,index) => ({
+      "NO": index + 1,
+      "NO AJU": String(r.aju ?? ""),
+      "NO DAFTAR": String(r.regNo ?? ""),
+      "TANGGAL MASUK": dateText(r.regDate),
+      "NAMA PT": r.supplierName || r.partyName || "",
+      "BARANG": sumMap(r.quantities),
+      "KEMASAN": packageText(r.packages),
+      "SATUAN": [...r.quantities.entries()].filter(([,v]) => v !== 0).map(([unit]) => unit).join(" + ") || "-",
+      "TUJUAN PENGIRIMAN BARANG": r.purpose || "-"
+    }));
+}
+function renderTrackingPreview() {
+  const panel = $("trackingPanel");
+  if (!panel) return;
+  const isBc40 = $("docType").value === "40-in";
+  panel.hidden = !isBc40;
+  const rows = getTrackingRows();
+  $("copyTrackingBtn").disabled = !rows.length;
+  $("exportTrackingBtn").disabled = !rows.length;
+  const preview = $("trackingPreview");
+  preview.innerHTML = "";
+  if (!isBc40) {
+    preview.className = "tracking-preview empty";
+    preview.textContent = "Fitur ini khusus dokumen BC 4.0.";
+    return;
+  }
+  if (!rows.length) {
+    preview.className = "tracking-preview empty";
+    preview.textContent = "Belum ada dokumen BC 4.0 yang dicentang pada bagian 5.";
+    return;
+  }
+  preview.className = "tracking-preview";
+  const table = document.createElement("table");
+  table.className = "tracking-table";
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  TRACKING_HEADERS.forEach(h => { const th=document.createElement("th"); th.textContent=h; headRow.append(th); });
+  thead.append(headRow); table.append(thead);
+  const tbody = document.createElement("tbody");
+  rows.forEach(row => {
+    const tr=document.createElement("tr");
+    TRACKING_HEADERS.forEach(h => { const td=document.createElement("td"); td.textContent=String(row[h] ?? ""); tr.append(td); });
+    tbody.append(tr);
+  });
+  table.append(tbody); preview.append(table);
+  $("trackingStatus").textContent = `${rows.length} dokumen BC 4.0 siap disalin atau diekspor.`;
+}
+async function copyTrackingReport() {
+  const rows=getTrackingRows();
+  if (!rows.length) return;
+  const lines=[TRACKING_HEADERS,...rows.map(r=>TRACKING_HEADERS.map(h=>r[h]))];
+  const tsv=lines.map((line,i)=>line.map((v,col)=>{
+    const value=String(v ?? "").replace(/\\t/g," ").replace(/\\r?\\n/g," ");
+    return i>0 && [1,2].includes(col) ? `'${value}` : value;
+  }).join("\\t")).join("\\n");
+  try {
+    await navigator.clipboard.writeText(tsv);
+    $("trackingStatus").textContent="Data tracking berhasil disalin. Tempelkan ke Excel mulai dari sel A1.";
+  } catch {
+    const area=document.createElement("textarea");
+    area.value=tsv; area.style.position="fixed"; area.style.opacity="0";
+    document.body.append(area); area.select();
+    const ok=document.execCommand("copy"); area.remove();
+    $("trackingStatus").textContent=ok ? "Data tracking berhasil disalin. Tempelkan ke Excel mulai dari sel A1." : "Clipboard tidak diizinkan browser. Periksa izin clipboard.";
+  }
+}
+function exportTrackingReport() {
+  const rows=getTrackingRows();
+  if (!rows.length) return;
+  const ws=XLSX.utils.aoa_to_sheet([TRACKING_HEADERS,...rows.map(r=>TRACKING_HEADERS.map(h=>String(r[h] ?? "")))]);
+  ws["!cols"]=[{wch:7},{wch:29},{wch:22},{wch:16},{wch:38},{wch:35},{wch:30},{wch:20},{wch:38}];
+  for (let row=2;row<=rows.length+1;row++) {
+    for (const col of ["B","C"]) {
+      const cell=ws[`${col}${row}`];
+      if (cell) { cell.t="s"; cell.v=String(cell.v); }
+    }
+  }
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Tracking BC 4.0");
+  XLSX.writeFile(wb,`Tracking_BC_4.0_${dateInputToday().replace(/-/g,"")}.xlsx`);
+  $("trackingStatus").textContent="File Tracking BC 4.0 berhasil dibuat.";
+}
 function buildExcelWorksheet(rows) {
   const headers = ["Jenis/Kode Dokumen","Nomor AJU","Nomor Daftar","Tanggal Daftar","Tanggal Keluar","Nama Customer"];
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows.map(r => headers.map(h => String(r[h] ?? "")))]);
@@ -635,7 +729,7 @@ $("clearFilesBtn").addEventListener("click",()=>{
   uploadedFiles.clear(); records=[]; redNumbers.clear(); excludedNumbers.clear(); exportSelected.clear();
   $("excludeManual").value=""; $("redManual").value=""; $("docType").disabled=true; $("partyMode").disabled=true; $("partyName").disabled=true;
   $("generateBtn").disabled=true; $("copyBtn").disabled=true;
-  $("copyExcelBtn").disabled=true; $("exportBtn").disabled=true;
+  $("copyExcelBtn").disabled=true; $("exportBtn").disabled=true;\n  $("copyTrackingBtn").disabled=true; $("exportTrackingBtn").disabled=true; $("trackingPanel").hidden=true; $("trackingPreview").textContent="Unggah Excel untuk menampilkan data tracking.";
   $("exportList").className="export-list empty"; $("exportList").textContent="Unggah Excel untuk menampilkan dokumen.";
   $("exportSelectionStatus").textContent="0 dokumen dipilih untuk ekspor.";
   $("docType").innerHTML='<option value="">Unggah Excel terlebih dahulu</option>';
@@ -665,7 +759,7 @@ $("clearExportSelectionBtn").addEventListener("click",()=>{
   renderExportList();
 });
 $("copyExcelBtn").addEventListener("click",copyExcelReport);
-$("exportBtn").addEventListener("click",exportExcelReport);
+$("exportBtn").addEventListener("click",exportExcelReport);\n$("copyTrackingBtn").addEventListener("click",copyTrackingReport);\n$("exportTrackingBtn").addEventListener("click",exportTrackingReport);
 $("redManual").addEventListener("input",()=>{updateRedStatus(); if(records.length){renderRedList(); $("output").value=buildReport();}});
 $("excludeManual").addEventListener("input",()=>{updateExcludeStatus(); if(records.length)$("output").value=buildReport();});
 $("generateBtn").addEventListener("click",()=>{$("output").value=buildReport();$("outputStatus").textContent="Laporan diperbarui. Periksa isi sebelum dikirim.";});
