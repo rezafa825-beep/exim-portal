@@ -12,15 +12,19 @@ const docLabels={invoice:'Invoice',packing_list:'Packing List',surat_jalan:'Sura
 
 function Dashboard({open}){
   return <main className="portal-home">
-    <section className="home-hero"><div className="home-mark">RS</div><h1>REZA SYSTEM</h1><p className="home-slogan">Setiap kesulitan pasti ada kemudahan</p></section>
-    <section className="home-cards">
-      <button className="home-card" onClick={()=>open('validation')}><span className="home-icon">✓</span><h2>EXIM Validation</h2><p>Cross-check Invoice, Packing List, dan Draft EXIM / CEISA secara otomatis, lengkap dengan History dan Customer Master.</p><span className="home-go">Buka EXIM Validation →</span></button>
-      <button className="home-card" onClick={()=>open('report')}><span className="home-icon">💬</span><h2>WhatsApp Report</h2><p>Buat laporan format WhatsApp dari satu atau beberapa file Excel, dengan pengaturan jalur dan pengecualian nomor daftar.</p><span className="home-go">Buka WhatsApp Report →</span></button>
-      <button className="home-card" onClick={()=>open('raw-material')}><span className="home-icon">▤</span><h2>Pengambilan Data Bahan Baku</h2><p>Ambil data barang CEISA dan bentuk output BAHANBAKU serta BAHANBAKUTARIF.</p><span className="home-go">Buka Pengambilan Data Bahan Baku →</span></button>
-      <button className="home-card" onClick={()=>open('bc27-monthly')}><span className="home-icon">▦</span><h2>BC 2.7 Monthly Report</h2><p>Rekapitulasi barang keluar BC 2.7 dari beberapa file CEISA berdasarkan kode barang, satuan, dan kategori.</p><span className="home-go">Buka BC 2.7 Monthly Report →</span></button>
-      <div className="home-card home-card-disabled"><span className="home-icon">◷</span><h2>Monitoring Subkontrak</h2><p>Integrasi akan dikerjakan pada tahap berikutnya.</p><span className="home-go">Segera hadir</span></div>
+    <section className="home-welcome">
+      <div><span className="home-eyebrow">WORKSPACE · EXIM MANAGEMENT</span><h1>Selamat datang di REZA SYSTEM</h1><p className="home-slogan">Setiap kesulitan pasti ada kemudahan</p></div>
+      <div className="home-welcome-mark" aria-hidden="true">RS</div>
     </section>
-    <footer className="home-foot">REZA SYSTEM · File Excel diproses langsung di browser Anda</footer>
+    <section className="home-section-head"><div><h2>Modul kerja</h2><p>Pilih modul untuk memulai pekerjaan Anda.</p></div><span className="home-module-count">4 modul aktif</span></section>
+    <section className="home-cards">
+      <button className="home-card" onClick={()=>open('validation')}><span className="home-card-top"><span className="home-icon">✓</span><span className="home-card-status active">Aktif</span></span><h3>EXIM Validation</h3><p>Cross-check Invoice, Packing List, dan Draft EXIM / CEISA secara otomatis, lengkap dengan History dan Customer Master.</p><span className="home-go">Buka modul <span aria-hidden="true">→</span></span></button>
+      <button className="home-card" onClick={()=>open('report')}><span className="home-card-top"><span className="home-icon">▤</span><span className="home-card-status active">Aktif</span></span><h3>WhatsApp Report</h3><p>Buat laporan format WhatsApp dari satu atau beberapa file Excel, dengan pengaturan jalur dan pengecualian nomor daftar.</p><span className="home-go">Buka modul <span aria-hidden="true">→</span></span></button>
+      <button className="home-card" onClick={()=>open('raw-material')}><span className="home-card-top"><span className="home-icon">▧</span><span className="home-card-status active">Aktif</span></span><h3>Pengambilan Data Bahan Baku</h3><p>Ambil data barang CEISA dan bentuk output BAHANBAKU serta BAHANBAKUTARIF.</p><span className="home-go">Buka modul <span aria-hidden="true">→</span></span></button>
+      <button className="home-card" onClick={()=>open('bc27-monthly')}><span className="home-card-top"><span className="home-icon">▦</span><span className="home-card-status active">Aktif</span></span><h3>BC 2.7 Monthly Report</h3><p>Rekapitulasi barang keluar BC 2.7 dari beberapa file CEISA berdasarkan kode barang, satuan, dan kategori.</p><span className="home-go">Buka modul <span aria-hidden="true">→</span></span></button>
+      <div className="home-card home-card-disabled"><span className="home-card-top"><span className="home-icon">◷</span><span className="home-card-status planned">Dalam pengembangan</span></span><h3>Monitoring Subkontrak</h3><p>Modul monitoring kontrak dan transaksi subkontrak akan diintegrasikan pada tahap berikutnya.</p><span className="home-go">Belum tersedia</span></div>
+    </section>
+    <footer className="home-foot">REZA SYSTEM <span>·</span> File Excel diproses langsung di browser Anda</footer>
   </main>
 }
 
@@ -37,13 +41,15 @@ function App(){
   return <div className={'portal-root'+(sidebarOpen?' sidebar-expanded':' sidebar-collapsed')}>
     <aside className="portal-sidebar">
       <button className="portal-sidebar-brand" onClick={()=>setSidebarOpen(v=>!v)} title="Tampilkan / sembunyikan menu"><span className="portal-mark">RS</span><span className="portal-sidebar-name"><b>REZA SYSTEM</b><small>INTEGRATED EXIM MANAGEMENT</small></span></button>
-      <nav className="portal-side-menu">
-        <button className={module==='home'?'selected':''} onClick={()=>openModule('home')}><span>⌂</span><b>Dashboard</b></button>
+      <nav className="portal-side-menu" aria-label="Navigasi utama">
+        <div className="portal-nav-label">WORKSPACE</div>
+        <button title="Dashboard" aria-label="Dashboard" className={module==='home'?'selected':''} onClick={()=>openModule('home')}><span>⌂</span><b>Dashboard</b></button>
         <button className={module==='validation'?'selected':''} onClick={()=>openModule('validation')}><span>✓</span><b>EXIM Validation</b></button>
         <button className={module==='report'?'selected':''} onClick={()=>openModule('report')}><span>▤</span><b>WhatsApp Report</b></button>
         <button className={module==='raw-material'?'selected':''} onClick={()=>openModule('raw-material')}><span>▧</span><b>Pengambilan Data Bahan Baku</b></button>
         <button className={module==='bc27-monthly'?'selected':''} onClick={()=>openModule('bc27-monthly')}><span>▦</span><b>BC 2.7 Monthly Report</b></button>
-        <button className="menu-disabled" disabled title="Akan diintegrasikan pada tahap berikutnya"><span>◷</span><b>Monitoring Subkontrak</b></button>
+        <div className="portal-nav-label portal-nav-label-secondary">PENGEMBANGAN</div>
+        <button className="menu-disabled" disabled title="Akan diintegrasikan pada tahap berikutnya" aria-label="Monitoring Subkontrak, dalam pengembangan"><span>◷</span><b>Monitoring Subkontrak</b></button>
       </nav>
       <div className="portal-sidebar-foot">Setiap kesulitan pasti ada kemudahan</div>
     </aside>
