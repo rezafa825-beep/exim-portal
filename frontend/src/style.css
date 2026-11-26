@@ -993,3 +993,69 @@
   .bc27-drop,.bc27-primary,.bc27-secondary,.bc27-workflow-options>button,.bc27-cross-summary button{transition:none}
   .bc27-primary:hover:not(:disabled){transform:none}
 }
+
+
+/* REZA SYSTEM — Responsive & Accessibility audit fixes */
+#root,.portal-root,.portal-stage,.portal-home,.shell,.shell>main,
+.raw-page,.bc27-page{min-width:0}
+.portal-side-menu button,.portal-sidebar-brand,
+.portal-stage .shell nav button,.home-card{
+  -webkit-tap-highlight-color:transparent;
+}
+.portal-side-menu button:focus-visible,
+.portal-sidebar-brand:focus-visible,
+.portal-stage .shell nav button:focus-visible,
+.home-card:focus-visible{
+  outline:3px solid #93c5fd;
+  outline-offset:3px;
+  position:relative;
+  z-index:1;
+}
+.portal-side-menu button,.portal-stage .shell nav button{min-height:44px}
+.portal-report{min-width:0;max-width:100%}
+.portal-report iframe{display:block;width:100%;height:100%;border:0}
+.table-wrap,.raw-table-scroll,.raw-preview-scroll,.bc27-table-wrap{
+  max-width:100%;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-x:contain;
+}
+.raw-table-scroll,.raw-preview-scroll,.bc27-table-wrap{scrollbar-width:thin}
+.raw-page input:focus-visible,.raw-page button:focus-visible,
+.bc27-page input:focus-visible,.bc27-page select:focus-visible,
+.bc27-page button:focus-visible{
+  outline:3px solid rgba(59,130,246,.28);
+  outline-offset:2px;
+}
+.raw-page button,.bc27-page button{touch-action:manipulation}
+@media(max-width:900px){
+  .portal-stage .portal-home{padding-left:22px;padding-right:22px}
+  .portal-home .home-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:620px){
+  /* Jangan sembunyikan item navigasi EXIM Validation yang tidak aktif.
+     Semua halaman harus tetap dapat dibuka di layar kecil. */
+  .portal-stage .shell>aside nav button:not(.active){display:flex}
+  .portal-stage .shell>aside nav button .validation-nav-text{display:none}
+  .portal-stage .shell>aside nav button{
+    justify-content:center;
+    min-height:44px;
+    padding:11px 5px;
+  }
+  .portal-stage .shell>aside nav button>span:first-child{
+    display:inline-block;
+    width:auto;
+    font-size:18px;
+  }
+  .portal-stage .portal-home{padding:20px 14px 34px}
+  .portal-home .home-cards{grid-template-columns:1fr}
+  .portal-stage .portal-home .home-welcome{gap:10px}
+  .portal-stage .portal-home .home-welcome h1{font-size:clamp(22px,6vw,28px)}
+  .portal-side-menu button{min-height:46px}
+  .raw-page input,.raw-page select,.raw-page textarea,
+  .bc27-page input,.bc27-page select,.bc27-page textarea{
+    font-size:16px;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .portal-sidebar,.portal-stage{transition:none}
+}
