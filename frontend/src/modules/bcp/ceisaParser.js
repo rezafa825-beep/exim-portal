@@ -259,6 +259,14 @@ function buildItems(aju, barangRows, bahanRows, tariffRows, otherItemRows, rawMa
     for (const material of relatedMaterials) {
       const materialId = `BB-${crypto.randomUUID()}`;
       const materialSequence = normalizeText(material.get('SERI BAHAN BAKU'));
+      const linkedDocuments = rawMaterialDocumentRows.filter(detail =>
+        normalizeText(detail.get('SERI BARANG')) === sequence &&
+        normalizeText(detail.get('SERI BAHAN BAKU')) === materialSequence
+      );
+      const linkedTariffs = tariffRows.filter(tariff =>
+        normalizeText(tariff.get('SERI BARANG')) === sequence &&
+        normalizeText(tariff.get('SERI BAHAN BAKU')) === materialSequence
+      );
       const materialCurrent = {
         seri_bahan_baku: material.get('SERI BAHAN BAKU'),
         kode_asal_bahan_baku: material.get('KODE ASAL BAHAN BAKU'),
@@ -294,10 +302,6 @@ function buildItems(aju, barangRows, bahanRows, tariffRows, otherItemRows, rawMa
         extension: { raw_fields: material.raw_fields, related_documents: rawRows(linkedDocuments) }
       });
 
-      const linkedDocuments = rawMaterialDocumentRows.filter(detail =>\n        normalizeText(detail.get('SERI BARANG')) === sequence &&\n        normalizeText(detail.get('SERI BAHAN BAKU')) === materialSequence\n      );\n      const linkedTariffs = tariffRows.filter(tariff =>
-        normalizeText(tariff.get('SERI BARANG')) === sequence &&
-        normalizeText(tariff.get('SERI BAHAN BAKU')) === materialSequence
-      );
       for (const tariff of linkedTariffs) {
         const tariffCurrent = {
           kode_pungutan: tariff.get('KODE PUNGUTAN'),
