@@ -123,6 +123,7 @@ test('Partial Import commits valid unique documents and includes original source
 test('BCP project package round-trips original source bytes with checksum validation', async () => {
   const project = createEmptyProject({ projectName: 'PACKAGE TEST', companyName: COMPANY });
   project.data.import_decisions.push({ decision_id: 'DEC-1', candidate_id: 'DUP-DOCUMENT-DOC-1', decision: 'KEEP_BOTH', reason: 'Retain both.' });
+  project.data.export_history.push({ export_id: 'EXPORT-1', preset: 'DOC_REGISTRY', file_name: 'docs.xlsx' });
   const sourcePath = 'sources/ceisa/SRC-test_test.xlsx';
   project.sources.source_registry.push({
     source_id: 'SRC-test', source_type: 'CEISA', original_file_name: 'test.xlsx',
@@ -134,6 +135,7 @@ test('BCP project package round-trips original source bytes with checksum valida
   const restored = await readProjectArchive(new File([archive.bytes], 'package-test.bcp'));
   assert.equal(restored.manifest.project_id, project.manifest.project_id);
   assert.equal(restored.data.import_decisions[0].decision, 'KEEP_BOTH');
+  assert.equal(restored.data.export_history[0].file_name, 'docs.xlsx');
   assert.deepEqual([...restored.sources.files[sourcePath]], [1, 2, 3]);
 });
 
