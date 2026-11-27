@@ -78,6 +78,7 @@ export function assignDocumentToPeriod(project, documentId, periodId, reason = '
   if (document.period_id && !String(reason || '').trim()) throw new Error('Alasan wajib diisi untuk memindahkan dokumen antarperiode.');
 
   const previousPeriod = next.data.periods.find(row => row.period_id === document.period_id);
+  if (previousPeriod?.status === 'CLOSED') throw new Error('Periode asal CLOSED harus dibuka kembali sebelum dokumen dipindahkan.');
   if (previousPeriod) previousPeriod.document_ids = previousPeriod.document_ids.filter(id => id !== documentId);
   if (!period.document_ids.includes(documentId)) period.document_ids.push(documentId);
   document.period_id = periodId;
