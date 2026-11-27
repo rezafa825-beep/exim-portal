@@ -1,13 +1,21 @@
 import { appendImportedDocumentBundle } from './registryEngine.js';
 import { refreshProjectCounts } from './projectSchema.js';
 
-function isDuplicateDocument(project, document) {
-  return project.data.documents.some(existing =>
-    (document.aju_number && existing.aju_number === document.aju_number) ||
+function findDuplicateDocument(project, document) {
+  return project.data.documents.find(existing =>
+    (document.aju_number && (existing.aju_number === document.aju_number ||
+      existing.current_data?.nomor_aju === document.aju_number ||
+      existing.current_data?.aju_number === document.aju_number)) ||
     (existing.document_type === document.document_type &&
       document.registration_number &&
-      existing.registration_number === document.registration_number)
-  );
+      (existing.registration_number === document.registration_number ||
+       existing.current_data?.registration_number === document.registration_number))
+  ) || null;
+}
+
+function latestDecision(project, documentId) {
+  return [...(project.data.import_decisions || [])].reverse()
+    .find(row => row.candidate_id === `DUP-DOCUMENT-${documentId}`) || null;
 }
 
 export function evaluateStagedImport(project, stagedFiles) {
@@ -25,30 +33,39 @@ export function evaluateStagedImport(project, stagedFiles) {
     const repeatedInBatch = seenFileHashes.has(source.sha256);
     seenFileHashes.add(source.sha256);
     const existingSource = project.sources.source_registry.find(row => row.sha256 === source.sha256);
+    const duplicateFile = repeatedInBatch || !!existingSource;
     const documentRows = [];
 
     for (const entry of file.documents) {
       const document = entry.document;
       const aju = String(document.aju_number || '').trim();
-      const duplicateExisting = isDuplicateDocument(project, document);
+      const duplicateExisting = findDuplicateDocument(project, document);
       const duplicateInBatch = aju && seenAju.has(aju);
+      const duplicateMatch = duplicateExisting || (duplicateInBatch ? { document_id: seenAju.get(aju) } : null);
+      const decision = latestDecision(project, document.document_id);
       if (aju) seenAju.add(aju);
 
       let status = 'READY';
       let reason = 'Dokumen unik dan siap diimpor.';
       const hasError = entry.validation?.status === 'ERROR' ||
         file.issues.some(issue => issue.severity === 'ERROR' && issue.document_number === aju);
-      if (repeatedInBatch) {
-        status = 'DUPLICATE_FILE';
-        reason = 'File dengan SHA-256 yang sama sudah ada lebih awal dalam batch ini.';
-      } else if (duplicateExisting || duplicateInBatch) {
-        status = 'POSSIBLE_DUPLICATE';
-        reason = duplicateExisting
-          ? 'Nomor Aju atau Nomor Daftar sudah ditemukan di proyek.'
-          : 'Nomor Aju yang sama ditemukan pada file lain dalam batch ini.';
-      } else if (hasError) {
+      if (hasError) {
         status = 'ERROR';
         reason = 'Dokumen memiliki validation error dan belum dapat diimpor.';
+      } else if (duplicateFile) {
+        status = 'DUPLICATE_FILE';
+        reason = 'File dengan SHA-256 yang sama sudah terdaftar atau muncul lebih awal dalam batch.';
+      } else if (duplicateMatch) {
+        if (decision?.decision === 'USE_EXISTING') {
+          status = 'USE_EXISTING';
+          reason = 'Keputusan review: gunakan dokumen yang sudah ada.';
+        } else if (['USE_NEW', 'KEEP_BOTH'].includes(decision?.decision)) {
+          status = 'READY_WITH_DUPLICATE_DECISION';
+          reason = `Keputusan review: ${decision.decision}.`;
+        } else {
+          status = decision?.decision === 'DEFER_REVIEW' ? 'POSSIBLE_DUPLICATE' : 'POSSIBLE_DUPLICATE';
+          reason = duplicateExisting ? 'Nomor Aju atau Nomor Daftar sudah ditemukan di proyek.' : 'Nomor Aju yang sama ditemukan pada file lain dalam batch.';
+        }
       } else if (document.document_type === 'BC27_UNKNOWN') {
         status = 'NEEDS_REVIEW';
         reason = document.extension?.classification?.reason || 'Arah transaksi perlu dikonfirmasi.';
@@ -59,13 +76,15 @@ export function evaluateStagedImport(project, stagedFiles) {
         registration_number: document.registration_number,
         document_type: document.document_type,
         item_count: entry.items.length,
+        existing_document_id: duplicateExisting?.document_id || (duplicateInBatch ? seenAju.get(aju) : null),
+        decision: decision?.decision || null,
         status,
         reason
       });
     }
 
     const allDuplicate = documentRows.length > 0 && documentRows.every(row =>
-      ['POSSIBLE_DUPLICATE', 'DUPLICATE_FILE'].includes(row.status)
+      ['POSSIBLE_DUPLICATE', 'DUPLICATE_FILE', 'USE_EXISTING'].includes(row.status)
     );
     rows.push({
       source_id: source.source_id,
@@ -73,7 +92,7 @@ export function evaluateStagedImport(project, stagedFiles) {
       file_format: source.file_format,
       sha256: source.sha256,
       existing_source: !!existingSource,
-      status: repeatedInBatch ? 'DUPLICATE_FILE' : allDuplicate ? 'ALL_DOCUMENTS_DUPLICATE' : 'STAGED',
+      status: duplicateFile ? 'DUPLICATE_FILE' : allDuplicate ? 'ALL_DOCUMENTS_DUPLICATE' : 'STAGED',
       documents: documentRows,
       issues: file.issues || [],
       summary: file.summary
@@ -107,7 +126,20 @@ export function commitPartialImport(project, stagedFiles, selectedDocumentIds, d
         if (check?.status !== 'READY') held.push({ document_id: entry.document.document_id, aju_number: entry.document.aju_number, status: check?.status || 'NOT_SELECTED', reason: check?.reason || 'Tidak dipilih untuk impor.' });
         continue;
       }
-      if (!check || !['READY', 'NEEDS_REVIEW'].includes(check.status)) {
+      if (check?.status === 'USE_EXISTING') {
+        const existingDocument = next.data.documents.find(row => row.document_id === check.existing_document_id);
+        if (!existingDocument) {
+          held.push({ document_id: entry.document.document_id, aju_number: entry.document.aju_number, status: 'ERROR', reason: 'Dokumen existing yang dipilih tidak ditemukan lagi.' });
+          continue;
+        }
+        if (!importedBySource.has(staged.source.sha256)) importedBySource.set(staged.source.sha256, []);
+        importedBySource.get(staged.source.sha256).push(existingDocument.document_id);
+        const sourceId = staged.source.source_id;
+        existingDocument.source_refs = [...new Set([...(existingDocument.source_refs || []), sourceId])];
+        held.push({ document_id: entry.document.document_id, existing_document_id: existingDocument.document_id, aju_number: entry.document.aju_number, status: 'USE_EXISTING', reason: 'Sumber baru ditautkan ke dokumen existing; tidak dibuat transaksi baru.' });
+        continue;
+      }
+      if (!check || !['READY', 'NEEDS_REVIEW', 'READY_WITH_DUPLICATE_DECISION'].includes(check.status)) {
         held.push({ document_id: entry.document.document_id, aju_number: entry.document.aju_number, status: check?.status || 'ERROR', reason: check?.reason || 'Dokumen tidak lolos pemeriksaan.' });
         continue;
       }
@@ -139,8 +171,20 @@ export function commitPartialImport(project, stagedFiles, selectedDocumentIds, d
           items: entry.items,
           raw_materials: entry.raw_materials,
           raw_material_tariffs: entry.raw_material_tariffs,
-          source_id: sourceId
+          source_id: sourceId,
+          allowDuplicateIdentity: check.status === 'READY_WITH_DUPLICATE_DECISION'
         });
+        if (check.status === 'READY_WITH_DUPLICATE_DECISION' && check.existing_document_id) {
+          next.data.relationships.push({
+            relationship_id: `REL-${crypto.randomUUID()}`,
+            source_document_id: check.existing_document_id,
+            target_document_id: document.document_id,
+            relationship_type: check.decision === 'USE_NEW' ? 'SUPERSEDED_BY' : 'RELATED_TRANSACTION',
+            match_status: 'EXACT_DUPLICATE', resolution: check.decision,
+            reason: latestDecision(project, document.document_id)?.reason || 'Keputusan Duplicate Review.',
+            created_at: new Date().toISOString(), operator_id: next.settings?.operator?.operator_id || 'LOCAL-USER-001'
+          });
+        }
         importedIds.push(document.document_id);
         if (!importedBySource.has(staged.source.sha256)) importedBySource.set(staged.source.sha256, []);
         importedBySource.get(staged.source.sha256).push(document.document_id);
