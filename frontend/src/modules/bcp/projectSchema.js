@@ -27,6 +27,7 @@ export function createEmptyProject({ projectName, companyName = '' }) {
       periods: [],
       corrections: [],
       validation: [],
+      relationships: [],
       audit_log: []
     },
     sources: { source_registry: [] },
