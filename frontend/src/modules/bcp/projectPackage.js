@@ -1,9 +1,17 @@
 import { strToU8, strFromU8, zipSync, unzipSync } from 'fflate';
 import { BCP_FORMAT, BCP_FORMAT_VERSION, validateProject, refreshProjectCounts } from './projectSchema.js';
+import { validateRegistryIntegrity } from './registryEngine.js';
 
 const MAX_PROJECT_FILE_BYTES = 250 * 1024 * 1024;
 const MAX_UNCOMPRESSED_BYTES = 750 * 1024 * 1024;
 const MAX_ARCHIVE_ENTRIES = 10000;
+const REQUIRED_ARCHIVE_ENTRIES = [
+  'manifest.json', 'data/documents.json', 'data/items.json', 'data/raw_materials.json',
+  'data/raw_material_tariffs.json', 'data/periods.json', 'data/corrections.json',
+  'data/validation.json', 'data/relationships.json', 'data/import_decisions.json',
+  'data/export_history.json', 'data/audit_log.json', 'sources/source_registry.json',
+  'settings/project_settings.json'
+];
 
 function jsonBytes(value) {
   return strToU8(JSON.stringify(value, null, 2));
@@ -44,9 +52,11 @@ function preflightArchive(bytes) {
   }
   if (centralOffset + centralSize > eocd) throw new Error('Central directory ZIP berada di luar batas file.');
 
+  if (centralOffset + centralSize !== eocd) throw new Error('Central directory ZIP tidak konsisten.');
   let cursor = centralOffset;
   let totalUncompressed = 0;
   const decoder = new TextDecoder();
+  const seenNames = new Set();
   for (let index = 0; index < entryCount; index++) {
     if (cursor + 46 > bytes.length || view.getUint32(cursor, true) !== 0x02014b50) {
       throw new Error('Metadata file internal ZIP tidak valid.');
@@ -67,6 +77,12 @@ function preflightArchive(bytes) {
     const nameEnd = nameStart + nameLength;
     if (nameEnd + extraLength + commentLength > bytes.length) throw new Error('Nama file ZIP terpotong.');
     const name = decoder.decode(bytes.subarray(nameStart, nameEnd));
+    if (seenNames.has(name)) throw new Error('Arsip berisi nama file internal duplikat.');
+    seenNames.add(name);
+    const localOffset = view.getUint32(cursor + 42, true);
+    if (localOffset + 30 > centralOffset || view.getUint32(localOffset, true) !== 0x04034b50) {
+      throw new Error('Header file lokal ZIP tidak valid.');
+    }
     if (name.startsWith('/') || name.includes('\\') || name.split('/').some(part => part === '..' || part === '.')) {
       throw new Error('Arsip berisi jalur file yang tidak aman.');
     }
@@ -76,11 +92,11 @@ function preflightArchive(bytes) {
     }
     cursor = nameEnd + extraLength + commentLength;
   }
-  if (cursor > centralOffset + centralSize) throw new Error('Central directory ZIP tidak konsisten.');
+  if (cursor !== centralOffset + centralSize) throw new Error('Central directory ZIP tidak konsisten.');
 }
 
 export async function buildProjectArchive(project) {
-  const errors = validateProject(project);
+  const errors = [...validateProject(project), ...validateRegistryIntegrity(project)];
   if (errors.length) throw new Error(errors.join(' '));
 
   const normalized = refreshProjectCounts(project);
@@ -161,9 +177,20 @@ export async function readProjectArchive(file) {
   if (manifest.format_version !== BCP_FORMAT_VERSION) {
     throw new Error(`Versi format proyek ${manifest.format_version || 'tidak diketahui'} belum didukung oleh aplikasi ini.`);
   }
-  if (!manifest.checksums || typeof manifest.checksums !== 'object') throw new Error('Manifest tidak memiliki checksum integritas.');
+  if (!manifest.checksums || typeof manifest.checksums !== 'object' || Array.isArray(manifest.checksums)) throw new Error('Manifest tidak memiliki checksum integritas.');
+  for (const path of REQUIRED_ARCHIVE_ENTRIES) {
+    if (!entries[path]) throw new Error('File internal wajib tidak ditemukan: ' + path);
+  }
+  for (const path of Object.keys(entries)) {
+    if (path !== 'manifest.json' && !Object.hasOwn(manifest.checksums, path)) {
+      throw new Error('Checksum tidak terdaftar untuk file internal: ' + path);
+    }
+  }
 
   for (const [path, expected] of Object.entries(manifest.checksums)) {
+    if (path === 'manifest.json' || typeof expected !== 'string' || !/^[a-f0-9]{64}$/i.test(expected)) {
+      throw new Error('Daftar checksum pada manifest tidak valid.');
+    }
     if (!entries[path]) throw new Error('File internal hilang: ' + path);
     const actual = await sha256Hex(entries[path]);
     if (actual !== expected) throw new Error('Pemeriksaan integritas gagal pada ' + path + '. File proyek mungkin berubah atau rusak.');
@@ -203,7 +230,7 @@ export async function readProjectArchive(file) {
     settings: readJson(entries, 'settings/project_settings.json', {})
   };
 
-  const errors = validateProject(project);
+  const errors = [...validateProject(project), ...validateRegistryIntegrity(project)];
   if (errors.length) throw new Error(errors.join(' '));
   return project;
 }
