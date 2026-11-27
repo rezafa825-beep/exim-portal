@@ -153,7 +153,7 @@ test('duplicate file and duplicate document are not imported as new transactions
   const selected = first[0].documents.filter(row => row.status === 'READY').map(row => row.document_id);
   const imported = commitPartialImport(project, [parsed], selected);
   const duplicate = evaluateStagedImport(imported.project, [parsed]);
-  assert.equal(duplicate[0].documents[0].status, 'POSSIBLE_DUPLICATE');
+  assert.equal(duplicate[0].documents[0].status, 'DUPLICATE_FILE');
 });
 
 test('project package rejects source tampering and unsafe ZIP paths', async () => {
