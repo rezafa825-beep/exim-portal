@@ -1,4 +1,4 @@
-import { refreshProjectCounts } from './projectSchema';
+import { refreshProjectCounts } from './projectSchema.js';
 
 const BUSINESS_STATUSES = new Set(['CONFIRMED', 'VOID', 'CANCELLED']);
 const SENSITIVE_FIELDS = new Set([
