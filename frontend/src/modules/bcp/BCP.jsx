@@ -131,11 +131,11 @@ export default function BCP() {
     finally { setBusy(false); }
   };
 
-  const saveProject = () => {
+  const saveProject = async () => {
     if (!project) return;
     setBusy(true); setError(''); setMessage('');
     try {
-      const savedManifest = downloadProjectArchive(project);
+      const savedManifest = await downloadProjectArchive(project);
       const next = {
         ...project,
         manifest: { ...project.manifest, last_saved_at: savedManifest.last_saved_at }
