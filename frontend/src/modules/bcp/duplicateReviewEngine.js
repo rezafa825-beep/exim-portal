@@ -96,7 +96,7 @@ export function buildDuplicateReview(project, stagedFiles) {
 
   return candidates.map(candidate => ({
     ...candidate,
-    decision: project.data.import_decisions?.find(row => row.candidate_id === candidate.candidate_id) || null
+    decision: [...(project.data.import_decisions || [])].reverse().find(row => row.candidate_id === candidate.candidate_id) || null
   }));
 }
 
