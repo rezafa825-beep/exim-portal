@@ -9,9 +9,18 @@ function jsonBytes(value) {
   return strToU8(JSON.stringify(value, null, 2));
 }
 
-async function sha256Hex(bytes) {\n  if (!globalThis.crypto?.subtle) throw new Error('Web Crypto API tidak tersedia. Gunakan browser modern melalui HTTPS atau localhost.');\n  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);\n  return Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, '0')).join('');\n}\n\nexport async function buildProjectArchive(project) {
+async function sha256Hex(bytes) {
+  if (!globalThis.crypto?.subtle) {
+    throw new Error('Web Crypto API tidak tersedia. Gunakan browser modern melalui HTTPS atau localhost.');
+  }
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, '0')).join('');
+}
+
+export async function buildProjectArchive(project) {
   const errors = validateProject(project);
   if (errors.length) throw new Error(errors.join(' '));
+
   const normalized = refreshProjectCounts(project);
   const manifest = {
     ...normalized.manifest,
@@ -19,8 +28,8 @@ async function sha256Hex(bytes) {\n  if (!globalThis.crypto?.subtle) throw new E
     format_version: BCP_FORMAT_VERSION,
     last_saved_at: new Date().toISOString()
   };
+
   const entries = {
-    'manifest.json': jsonBytes(manifest),
     'data/documents.json': jsonBytes(normalized.data.documents),
     'data/items.json': jsonBytes(normalized.data.items),
     'data/periods.json': jsonBytes(normalized.data.periods),
@@ -30,42 +39,80 @@ async function sha256Hex(bytes) {\n  if (!globalThis.crypto?.subtle) throw new E
     'sources/source_registry.json': jsonBytes(normalized.sources.source_registry),
     'settings/project_settings.json': jsonBytes(normalized.settings)
   };
+
+  const checksums = {};
+  for (const [path, bytes] of Object.entries(entries)) {
+    checksums[path] = await sha256Hex(bytes);
+  }
+  manifest.checksums = checksums;
+  entries['manifest.json'] = jsonBytes(manifest);
+
   return { bytes: zipSync(entries, { level: 6 }), manifest };
 }
 
 function readJson(entries, path, fallback) {
   const bytes = entries[path];
   if (!bytes) return fallback;
-  try { return JSON.parse(strFromU8(bytes)); }
-  catch { throw new Error(`File internal ${path} bukan JSON yang valid.`); }
+  try {
+    return JSON.parse(strFromU8(bytes));
+  } catch {
+    throw new Error(`File internal ${path} bukan JSON yang valid.`);
+  }
 }
 
 function assertSafeArchive(entries) {
   const names = Object.keys(entries);
-  if (names.length > MAX_ARCHIVE_ENTRIES) throw new Error('Proyek berisi terlalu banyak file internal.');
+  if (names.length > MAX_ARCHIVE_ENTRIES) {
+    throw new Error('Proyek berisi terlalu banyak file internal.');
+  }
   let total = 0;
   for (const name of names) {
-    if (name.startsWith('/') || name.includes('\\') || name.split('/').some(part => part === '..' || part === '.')) {
+    if (name.startsWith('/') || name.includes('\\\\') || name.split('/').some(part => part === '..' || part === '.')) {
       throw new Error('Arsip berisi jalur file yang tidak aman.');
     }
     total += entries[name]?.byteLength || 0;
-    if (total > MAX_UNCOMPRESSED_BYTES) throw new Error('Ukuran hasil ekstraksi proyek melewati batas keamanan 500 MB.');
+    if (total > MAX_UNCOMPRESSED_BYTES) {
+      throw new Error('Ukuran hasil ekstraksi proyek melewati batas keamanan 750 MB.');
+    }
   }
 }
 
 export async function readProjectArchive(file) {
-  if (!file || !/\.bcp$/i.test(file.name)) throw new Error('Pilih file proyek dengan ekstensi .bcp.');
-  if (file.size > MAX_PROJECT_FILE_BYTES) throw new Error('Ukuran file proyek melebihi batas 100 MB.');
+  if (!file || !/\\.bcp$/i.test(file.name)) {
+    throw new Error('Pilih file proyek dengan ekstensi .bcp.');
+  }
+  if (file.size > MAX_PROJECT_FILE_BYTES) {
+    throw new Error('Ukuran file proyek melebihi batas 250 MB.');
+  }
+
   const input = new Uint8Array(await file.arrayBuffer());
   let entries;
-  try { entries = unzipSync(input); }
-  catch { throw new Error('File .bcp rusak atau bukan arsip proyek yang valid.'); }
+  try {
+    entries = unzipSync(input);
+  } catch {
+    throw new Error('File .bcp rusak atau bukan arsip proyek yang valid.');
+  }
+
   assertSafeArchive(entries);
   const manifest = readJson(entries, 'manifest.json', null);
-  if (!manifest || manifest.format !== BCP_FORMAT) throw new Error('Manifest tidak ditemukan atau format proyek tidak dikenali.');
+  if (!manifest || manifest.format !== BCP_FORMAT) {
+    throw new Error('Manifest tidak ditemukan atau format proyek tidak dikenali.');
+  }
   if (manifest.format_version !== BCP_FORMAT_VERSION) {
     throw new Error(`Versi format proyek ${manifest.format_version || 'tidak diketahui'} belum didukung oleh aplikasi ini.`);
   }
+  if (!manifest.checksums || typeof manifest.checksums !== 'object') {
+    throw new Error('Manifest tidak memiliki checksum integritas.');
+  }
+
+  for (const [path, expected] of Object.entries(manifest.checksums)) {
+    if (!entries[path]) throw new Error('File internal hilang: ' + path);
+    const actual = await sha256Hex(entries[path]);
+    if (actual !== expected) {
+      throw new Error('Pemeriksaan integritas gagal pada ' + path + '. File proyek mungkin berubah atau rusak.');
+    }
+  }
+
   const project = {
     manifest,
     data: {
@@ -79,13 +126,14 @@ export async function readProjectArchive(file) {
     sources: { source_registry: readJson(entries, 'sources/source_registry.json', []) },
     settings: readJson(entries, 'settings/project_settings.json', {})
   };
+
   const errors = validateProject(project);
   if (errors.length) throw new Error(errors.join(' '));
   return project;
 }
 
-export function downloadProjectArchive(project) {
-  const { bytes, manifest } = buildProjectArchive(project);
+export async function downloadProjectArchive(project) {
+  const { bytes, manifest } = await buildProjectArchive(project);
   const blob = new Blob([bytes], { type: 'application/vnd.reza.bcp+zip' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -95,6 +143,6 @@ export function downloadProjectArchive(project) {
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
   return manifest;
 }
