@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createEmptyProject } from '../../src/modules/bcp/projectSchema.js';
-import { buildExportWorkbook, recordExportHistory, EXPORT_PRESETS } from '../../src/modules/bcp/exportEngine.js';
+import { buildExportWorkbook, recordExportHistory, EXPORT_PRESETS, saveExportProfile } from '../../src/modules/bcp/exportEngine.js';
 import * as XLSX from 'xlsx';
 
 function fixture() {
@@ -57,4 +57,20 @@ test('export history is stored in project data and audit log', () => {
   const next = recordExportHistory(fixture(), { preset: 'DOC_REGISTRY', data_version: 'CURRENT', file_name: 'docs.xlsx', record_count: 1 });
   assert.equal(next.data.export_history.length, 1);
   assert.equal(next.data.audit_log.at(-1).event_type, 'EXPORT_CREATED');
+});
+
+test('custom export profiles are stored with validated field selections', () => {
+  const saved = saveExportProfile(fixture(), { name: 'Item Basic', entity_type: 'ITEM', columns: ['item_code','quantity','not-a-field'] });
+  assert.equal(saved.settings.export.profiles.length, 1);
+  assert.deepEqual(saved.settings.export.profiles[0].columns, ['item_code','quantity']);
+  assert.throws(() => saveExportProfile(fixture(), { name: 'Empty', entity_type: 'ITEM', columns: [] }), /minimal satu kolom/);
+});
+
+test('formula guard prefixes values beginning with plus, minus, and at signs', () => {
+  const project = fixture();
+  project.data.items[0].description = '-CMD|x';
+  project.data.items[0].current_data.description = '-CMD|x';
+  const workbook = buildExportWorkbook(project, { preset: 'ITEM_REGISTRY' });
+  const rows = XLSX.utils.sheet_to_json(workbook.Sheets.ITEM_REGISTRY, { header: 1 });
+  assert.ok(String(rows[1][3]).startsWith("'-CMD"));
 });
