@@ -174,7 +174,7 @@ export function commitPartialImport(project, stagedFiles, selectedDocumentIds, d
           source_id: sourceId,
           allowDuplicateIdentity: check.status === 'READY_WITH_DUPLICATE_DECISION'
         });
-        if (check.status === 'READY_WITH_DUPLICATE_DECISION' && check.existing_document_id) {
+        if (check.status === 'READY_WITH_DUPLICATE_DECISION' && check.existing_document_id && next.data.documents.some(row => row.document_id === check.existing_document_id)) {
           next.data.relationships.push({
             relationship_id: `REL-${crypto.randomUUID()}`,
             source_document_id: check.existing_document_id,
