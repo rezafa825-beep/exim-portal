@@ -387,7 +387,8 @@ export async function parseBC27File(file, companyName) {
     for (const name of DOCUMENT_SHEETS) related[name] = grouped[name]?.get(aju) || [];
     const barangRows = grouped.BARANG?.get(aju) || [];
     const bahanRows = grouped.BAHANBAKU?.get(aju) || [];
-    const tariffRows = grouped.BAHANBAKUTARIF?.get(aju) || [];\n    const rawMaterialDocumentRows = grouped.BAHANBAKUDOKUMEN?.get(aju) || [];
+    const tariffRows = grouped.BAHANBAKUTARIF?.get(aju) || [];
+    const rawMaterialDocumentRows = grouped.BAHANBAKUDOKUMEN?.get(aju) || [];
     const otherItemRows = [...ITEM_SHEETS].flatMap(name => grouped[name]?.get(aju) || []);
     const entities = related.ENTITAS || [];
     const classification = classifyDirection(entities, companyName);
