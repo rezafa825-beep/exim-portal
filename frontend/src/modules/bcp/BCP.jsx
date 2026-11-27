@@ -8,7 +8,7 @@ import { commitPartialImport, evaluateStagedImport } from './importEngine';
 import { buildDuplicateReview, recordDuplicateDecision } from './duplicateReviewEngine';
 import { applyStagingCorrection, getStagingValidationSummary } from './stagingEngine';
 import { createMonthlyPeriod, changeMonthlyPeriodStatus, assignDocumentToPeriod, getMonthlyPeriodSummary } from './periodEngine';
-import { buildExportWorkbook, downloadExportWorkbook, recordExportHistory, EXPORT_PRESETS, getExportFields, saveExportProfile } from './exportEngine';
+import { buildExportWorkbook, buildExportPreview, downloadExportWorkbook, recordExportHistory, EXPORT_PRESETS, getExportFields, saveExportProfile } from './exportEngine';
 
 function formatDate(value) {
   if (!value) return 'Belum pernah disimpan';
@@ -345,6 +345,15 @@ export default function BCP() {
     } catch (e) { setError(e.message || 'Keputusan duplikasi gagal disimpan.'); }
   };
   const go = next => { setView(next); setError(''); };
+  const exportPreview = view === 'exports' && project ? buildExportPreview(project, {
+    preset: exportPreset, dataVersion: exportVersion,
+    custom: exportPreset === 'CUSTOM' ? {
+      entity_type: exportEntityType, columns: exportColumns,
+      filters: exportFilterField && exportFilterValue ? { [exportFilterField]: exportFilterValue } : {},
+      group_by: exportGroupBy, sort_by: exportSortBy, sort_direction: exportSortDirection,
+      label_overrides: Object.fromEntries(exportLabelOverrides.split(';').map(part => part.split('=').map(value => value.trim())).filter(pair => pair.length === 2 && pair[0] && pair[1]))
+    } : null
+  }, 10) : null;
 
   return (
     <main className="bcp-app">
@@ -560,8 +569,16 @@ export default function BCP() {
               <div><span>File sumber</span><strong>{project.sources.source_registry.length.toLocaleString('id-ID')}</strong></div>
             </div>
             {exportPreset === 'CUSTOM' && <p className="bcp-muted">Kolom: {getExportFields(exportEntityType).filter(field => exportColumns.includes(field.key)).map(field => field.label).join(' · ') || 'Belum ada kolom dipilih'}</p>}
+            <div className="bcp-export-preview">
+              <div className="bcp-section-title"><h3>Preview Isi Workbook</h3><span>{exportPreview?.total_rows || 0} baris cocok · menampilkan maks. 10</span></div>
+              {!exportPreview?.headers?.length ? <p className="bcp-muted">Belum ada data untuk ditampilkan. Periksa pilihan kolom atau filter.</p> : (
+                <div className="bcp-registry-table-wrap"><table className="bcp-registry-table"><thead><tr>{exportPreview.headers.map((header,index) => <th key={index}>{header}</th>)}</tr></thead><tbody>
+                  {exportPreview.rows.map((row,rowIndex) => <tr key={rowIndex}>{row.map((cell,cellIndex) => <td key={cellIndex}>{cell instanceof Date ? formatDate(cell) : String(cell ?? '')}</td>)}</tr>)}
+                </tbody></table></div>
+              )}
+            </div>
             <div className="bcp-import-actions">
-              <span>Workbook akan memuat README, VALIDATION_SUMMARY, dan EXPORT_METADATA.</span>
+              <span>Workbook juga memuat README, VALIDATION_SUMMARY, dan EXPORT_METADATA.</span>
               <button className="bcp-button bcp-button-primary" onClick={exportNow} disabled={exportPreset === 'CUSTOM' && exportColumns.length === 0}>Export Excel (.xlsx)</button>
             </div>
           </div>
