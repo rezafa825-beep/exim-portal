@@ -1,5 +1,5 @@
-import { appendImportedDocumentBundle } from './registryEngine';
-import { refreshProjectCounts } from './projectSchema';
+import { appendImportedDocumentBundle } from './registryEngine.js';
+import { refreshProjectCounts } from './projectSchema.js';
 
 function isDuplicateDocument(project, document) {
   return project.data.documents.some(existing =>
