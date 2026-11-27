@@ -333,7 +333,7 @@ export default function BCP() {
 
       {view === 'dashboard' && project && (
         <section className="bcp-content">
-          <div className="bcp-section-heading"><div><span className="bcp-eyebrow">PROJECT OVERVIEW</span><h2>Dashboard BCP</h2><p>Ringkasan proyek saat ini. Modul pencatatan dan ekstraksi CEISA akan dibangun pada milestone berikutnya.</p></div></div>
+          <div className="bcp-section-heading"><div><span className="bcp-eyebrow">PROJECT OVERVIEW</span><h2>Dashboard BCP</h2><p>Ringkasan proyek lokal, dokumen CEISA, barang, file sumber, dan aktivitas pencatatan.</p></div></div>
           <div className="bcp-metric-grid">
             <div><span>Dokumen</span><strong>{project.data.documents.length.toLocaleString('id-ID')}</strong><small>Document Registry</small></div>
             <div><span>Detail Barang</span><strong>{project.data.items.length.toLocaleString('id-ID')}</strong><small>Item Registry</small></div>
@@ -342,10 +342,10 @@ export default function BCP() {
           </div>
           <div className="bcp-next-stage">
             <span className="bcp-eyebrow">DEVELOPMENT ROADMAP</span>
-            <h3>Fondasi proyek berhasil disiapkan</h3>
-            <p>Project Engine dan penyimpanan pemulihan lokal aktif. Tahap berikutnya adalah Registry, lalu Unified Upload dan parser BC 2.7 IN/OUT.</p>
-            <div className="bcp-progress"><span style={{ width: '12.5%' }}/></div>
-            <small>M1 · BCP Foundation — implementasi awal</small>
+            <h3>Fondasi proyek dan impor BC 2.7 sudah tersedia</h3>
+            <p>Project Engine, Registry, Unified Upload, parser BC 2.7, Duplicate Review, dan Validation Center sedang dikembangkan secara bertahap.</p>
+            <div className="bcp-progress"><span style={{ width: '50%' }}/></div>
+            <small>M1–M4 · Foundation, Registry, Extraction, dan Import Control — development</small>
           </div>
           <div className="bcp-section-title"><h3>Informasi Proyek</h3></div>
           <div className="bcp-info-grid"><div><span>Project ID</span><code>{project.manifest.project_id}</code></div><div><span>Format</span><strong>{project.manifest.format} · {project.manifest.format_version}</strong></div><div><span>Schema Version</span><strong>{project.manifest.schema_version}</strong></div><div><span>Pembaruan</span><strong>{formatDate(project.manifest.updated_at)}</strong></div></div>
@@ -504,7 +504,7 @@ export default function BCP() {
         <section className="bcp-content">
           <div className="bcp-section-heading"><div><span className="bcp-eyebrow">DOCUMENT REGISTRY</span><h2>Daftar Dokumen</h2><p>Satu record untuk setiap dokumen CEISA. Identitas dokumen dan detail sumber akan ditampilkan setelah proses impor tersedia.</p></div></div>
           <div className="bcp-registry-toolbar"><input value={documentQuery} onChange={e => setDocumentQuery(e.target.value)} placeholder="Cari Nomor Aju, Nomor Daftar, jenis BC, atau pihak..."/><span>{documentRows.length.toLocaleString('id-ID')} dokumen</span></div>
-          {documentRows.length === 0 ? <div className="bcp-empty"><div>▤</div><strong>Belum ada dokumen</strong><span>Dokumen akan muncul di sini setelah CEISA Extraction dan Import Engine tersedia.</span></div> : (
+          {documentRows.length === 0 ? <div className="bcp-empty"><div>▤</div><strong>Belum ada dokumen</strong><span>Unggah dan konfirmasi dokumen CEISA melalui Partial Import untuk menampilkan record.</span></div> : (
             <div className="bcp-registry-table-wrap"><table className="bcp-registry-table"><thead><tr><th>Jenis BC</th><th>Nomor Daftar</th><th>Nomor Aju</th><th>Status</th><th>Amendment</th><th>Detail</th></tr></thead><tbody>
               {documentRows.map(row => <tr key={row.document_id}><td>{row.document_type}</td><td>{row.registration_number || row.current_data?.registration_number || '—'}</td><td>{row.aju_number || row.current_data?.nomor_aju || row.current_data?.aju_number || '—'}</td><td><span className="bcp-table-status">{row.business_status || '—'}</span></td><td>{row.amendment_status || 'ORIGINAL'}</td><td><button className="bcp-text-button" onClick={() => setSelectedDocumentId(row.document_id)}>Lihat</button></td></tr>)}
             </tbody></table></div>
@@ -546,7 +546,7 @@ export default function BCP() {
             <div><span>Auto-Recovery</span><strong>{recoveryState === 'saved' ? 'Snapshot tersedia' : recoveryState === 'error' ? 'Gagal' : 'Menyiapkan'}</strong></div>
           </div>
           {validationErrors.length > 0 && <div className="bcp-error">{validationErrors.map(item => <div key={item}>{item}</div>)}</div>}
-          <p className="bcp-muted">Integrity check pada tahap ini memeriksa struktur JSON dan format proyek. Verifikasi checksum sumber file akan ditambahkan saat modul Source Registry dan import dibangun.</p>
+          <p className="bcp-muted">Integrity check memeriksa struktur proyek, checksum paket, dan file sumber yang disertakan.</p>
         </section>
       )}
 
