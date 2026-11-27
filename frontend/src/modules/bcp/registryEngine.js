@@ -69,7 +69,7 @@ function normalizeItem(input, documentId, sourceId) {
     item_value: input.item_value ?? current.item_value ?? null,
     source_refs: [...new Set([...(input.source_refs || []), ...(sourceId ? [sourceId] : [])])],
     source_locations: clone(input.source_locations || []),
-    original_data: clone(current),
+    original_data: clone(input.staging_original_data || current),
     current_data: clone(current),
     extension: clone(input.extension || {}),
     created_at: now,
