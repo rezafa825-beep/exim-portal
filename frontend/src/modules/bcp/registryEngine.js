@@ -337,28 +337,60 @@ export function appendImportedDocumentBundle(project, {
 
 export function validateRegistryIntegrity(project) {
   const errors = [];
-  const documentIds = new Set(project.data.documents.map(row => row.document_id));
-  const itemIds = new Set();
-  for (const item of project.data.items) {
+  const documents = project.data.documents || [];
+  const items = project.data.items || [];
+  const materials = project.data.raw_materials || [];
+  const tariffs = project.data.raw_material_tariffs || [];
+  const periods = project.data.periods || [];
+  const sources = project.sources?.source_registry || [];
+  const unique = (rows, key, label) => {
+    const seen = new Set();
+    for (const row of rows) {
+      const id = row?.[key];
+      if (!id || seen.has(id)) errors.push(`${label} ID tidak valid atau duplikat: ${id || '(kosong)'}`);
+      seen.add(id);
+    }
+    return seen;
+  };
+
+  const documentIds = unique(documents, 'document_id', 'Document');
+  const itemIds = unique(items, 'item_id', 'Item');
+  const materialIds = unique(materials, 'raw_material_id', 'Raw material');
+  unique(tariffs, 'raw_material_tariff_id', 'Raw material tariff');
+  const periodIds = unique(periods, 'period_id', 'Period');
+  const sourceIds = unique(sources, 'source_id', 'Source');
+  unique(project.data.relationships || [], 'relationship_id', 'Relationship');
+
+  for (const item of items) {
     if (!documentIds.has(item.document_id)) errors.push(`Item ${item.item_id} tidak memiliki dokumen induk.`);
-    if (itemIds.has(item.item_id)) errors.push(`Item ID duplikat: ${item.item_id}`);
-    itemIds.add(item.item_id);
+    for (const sourceId of item.source_refs || []) {
+      if (!sourceIds.has(sourceId)) errors.push(`Item ${item.item_id} merujuk source yang tidak tersedia: ${sourceId}`);
+    }
   }
-  const seenDocuments = new Set();
-  for (const document of project.data.documents) {
-    if (seenDocuments.has(document.document_id)) errors.push(`Document ID duplikat: ${document.document_id}`);
-    seenDocuments.add(document.document_id);
+  for (const document of documents) {
+    if (document.period_id && !periodIds.has(document.period_id)) {
+      errors.push(`Dokumen ${document.document_id} merujuk periode yang tidak tersedia.`);
+    }
+    for (const sourceId of document.source_refs || []) {
+      if (!sourceIds.has(sourceId)) errors.push(`Dokumen ${document.document_id} merujuk source yang tidak tersedia: ${sourceId}`);
+    }
   }
-  const rawMaterialIds = new Set();
-  for (const material of project.data.raw_materials) {
-    if (!itemIds.has(material.item_id)) errors.push(`Bahan baku ${material.raw_material_id} tidak memiliki item induk.`);
-    if (rawMaterialIds.has(material.raw_material_id)) errors.push(`Raw material ID duplikat: ${material.raw_material_id}`);
-    rawMaterialIds.add(material.raw_material_id);
+  for (const material of materials) {
+    const parent = items.find(item => item.item_id === material.item_id);
+    if (!parent) errors.push(`Bahan baku ${material.raw_material_id} tidak memiliki item induk.`);
+    else if (material.document_id !== parent.document_id) errors.push(`Bahan baku ${material.raw_material_id} memiliki dokumen induk yang tidak konsisten.`);
+    for (const sourceId of material.source_refs || []) {
+      if (!sourceIds.has(sourceId)) errors.push(`Bahan baku ${material.raw_material_id} merujuk source yang tidak tersedia: ${sourceId}`);
+    }
   }
-  for (const tariff of project.data.raw_material_tariffs) {
-    if (!rawMaterialIds.has(tariff.raw_material_id)) errors.push(`Tarif ${tariff.raw_material_tariff_id} tidak memiliki bahan baku induk.`);
+  for (const tariff of tariffs) {
+    const parent = materials.find(material => material.raw_material_id === tariff.raw_material_id);
+    if (!parent) errors.push(`Tarif ${tariff.raw_material_tariff_id} tidak memiliki bahan baku induk.`);
+    else if (tariff.document_id !== parent.document_id || tariff.item_id !== parent.item_id) {
+      errors.push(`Tarif ${tariff.raw_material_tariff_id} memiliki relasi induk yang tidak konsisten.`);
+    }
   }
-  for (const relationship of project.data.relationships) {
+  for (const relationship of project.data.relationships || []) {
     if (!documentIds.has(relationship.source_document_id) || !documentIds.has(relationship.target_document_id)) {
       errors.push(`Relationship ${relationship.relationship_id} mengarah ke dokumen yang tidak tersedia.`);
     }
