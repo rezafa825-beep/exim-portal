@@ -115,10 +115,16 @@ export async function readProjectArchive(file) {
   const sourceRegistry = readJson(entries, 'sources/source_registry.json', []);
   const sourceFiles = {};
   for (const source of sourceRegistry) {
-    if (source.internal_path && entries[source.internal_path]) {
-      if (!safeInternalPath(source.internal_path)) throw new Error('Lokasi file sumber tidak aman.');
-      sourceFiles[source.internal_path] = entries[source.internal_path];
+    if (!source.internal_path || !safeInternalPath(source.internal_path)) {
+      throw new Error('Lokasi file sumber tidak valid di Source Registry.');
     }
+    if (!entries[source.internal_path]) {
+      throw new Error('File sumber asli tidak ditemukan di dalam proyek: ' + source.original_file_name);
+    }
+    if (!manifest.checksums[source.internal_path]) {
+      throw new Error('Checksum file sumber tidak ditemukan: ' + source.original_file_name);
+    }
+    sourceFiles[source.internal_path] = entries[source.internal_path];
   }
 
   const project = {
