@@ -291,3 +291,72 @@ export function saveExportProfile(project, { name, entity_type = 'DOCUMENT', col
   });
   return refreshProjectCounts(next);
 }
+
+export function buildExportPreview(project, options = {}, limit = 10) {
+  const { preset = 'DOC_REGISTRY', dataVersion = 'CURRENT', custom = null, filters = {} } = options;
+  let records = [];
+  let fields = [];
+  let sheetName = '';
+  let config = {};
+  if (preset === 'DOC_REGISTRY' || preset === 'CUSTOM' && custom?.entity_type !== 'ITEM') {
+    records = project.data.documents.filter(row => filters.business_status
+      ? row.business_status === filters.business_status
+      : (filters.include_inactive || row.business_status === 'CONFIRMED'));
+    fields = DOC_FIELDS;
+    sheetName = preset === 'CUSTOM' ? 'CUSTOM_DOCUMENTS' : 'DOCUMENT_REGISTRY';
+    config = preset === 'CUSTOM' ? custom || {} : {};
+  } else if (preset === 'ITEM_REGISTRY' || preset === 'CUSTOM' && custom?.entity_type === 'ITEM') {
+    const docs = project.data.documents.filter(row => filters.business_status
+      ? row.business_status === filters.business_status
+      : (filters.include_inactive || row.business_status === 'CONFIRMED'));
+    const ids = new Set(docs.map(row => row.document_id));
+    records = project.data.items.filter(row => ids.has(row.document_id));
+    fields = ITEM_FIELDS;
+    sheetName = preset === 'CUSTOM' ? 'CUSTOM_ITEMS' : 'ITEM_REGISTRY';
+    config = preset === 'CUSTOM' ? custom || {} : {};
+  } else {
+    const workbook = buildExportWorkbook(project, options);
+    const candidate = workbook.SheetNames.find(name => !['README','VALIDATION_SUMMARY','EXPORT_METADATA'].includes(name)) || 'README';
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[candidate], { header: 1, raw: true, defval: '' });
+    return { sheet_name: candidate, headers: rows[0] || [], rows: rows.slice(1, limit + 1), total_rows: Math.max(0, rows.length - 1) };
+  }
+  if (preset === 'CUSTOM') {
+    const allowed = new Set(config.columns || []);
+    fields = fields.filter(field => allowed.has(field.key));
+  }
+  if (preset === 'CUSTOM' && !fields.length) return { sheet_name: sheetName, headers: [], rows: [], total_rows: 0 };
+  for (const [key, value] of Object.entries(config.filters || {})) {
+    if (value === '' || value === null || value === undefined) continue;
+    const needle = String(value).toLowerCase();
+    records = records.filter(record => {
+      const actual = getPath(record.current_data || {}, key) ?? getPath(record, key);
+      return String(actual ?? '').toLowerCase().includes(needle);
+    });
+  }
+  if (config.sort_by || config.group_by) {
+    const key = config.sort_by || config.group_by;
+    const direction = config.sort_by && config.sort_direction === 'DESC' ? -1 : 1;
+    records.sort((a,b) => {
+      const av = getPath(a.current_data || {}, key) ?? getPath(a, key) ?? '';
+      const bv = getPath(b.current_data || {}, key) ?? getPath(b, key) ?? '';
+      const an = Number(av), bn = Number(bv);
+      const compare = av !== '' && bv !== '' && Number.isFinite(an) && Number.isFinite(bn)
+        ? an - bn : String(av).localeCompare(String(bv), 'id', { numeric: true, sensitivity: 'base' });
+      return compare * direction;
+    });
+  }
+  let matrix = dataVersion === 'COMPARISON'
+    ? comparisonRows(records, fields, config)
+    : rowsFromFields(records, fields, dataVersion, config);
+  if (config.group_by) {
+    const groupField = fields.find(field => field.key === config.group_by);
+    if (groupField) {
+      matrix[0].unshift('Group: ' + (config.label_overrides?.[groupField.key] || groupField.label));
+      for (let index = 1; index < matrix.length; index++) {
+        const record = records[index - 1];
+        matrix[index].unshift(String(getPath(record.current_data || {}, config.group_by) ?? getPath(record, config.group_by) ?? '—'));
+      }
+    }
+  }
+  return { sheet_name: sheetName, headers: matrix[0] || [], rows: matrix.slice(1, limit + 1), total_rows: Math.max(0, matrix.length - 1) };
+}
