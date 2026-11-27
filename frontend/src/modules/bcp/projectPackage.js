@@ -34,7 +34,8 @@ export async function buildProjectArchive(project) {
     'data/items.json': jsonBytes(normalized.data.items),
     'data/periods.json': jsonBytes(normalized.data.periods),
     'data/corrections.json': jsonBytes(normalized.data.corrections),
-    'data/validation.json': jsonBytes(normalized.data.validation),\n    'data/relationships.json': jsonBytes(normalized.data.relationships),
+    'data/validation.json': jsonBytes(normalized.data.validation),
+    'data/relationships.json': jsonBytes(normalized.data.relationships),
     'data/audit_log.json': jsonBytes(normalized.data.audit_log),
     'sources/source_registry.json': jsonBytes(normalized.sources.source_registry),
     'settings/project_settings.json': jsonBytes(normalized.settings)
@@ -78,7 +79,7 @@ function assertSafeArchive(entries) {
 }
 
 export async function readProjectArchive(file) {
-  if (!file || !/\\.bcp$/i.test(file.name)) {
+  if (!file || !/\.bcp$/i.test(file.name)) {
     throw new Error('Pilih file proyek dengan ekstensi .bcp.');
   }
   if (file.size > MAX_PROJECT_FILE_BYTES) {
@@ -120,7 +121,8 @@ export async function readProjectArchive(file) {
       items: readJson(entries, 'data/items.json', []),
       periods: readJson(entries, 'data/periods.json', []),
       corrections: readJson(entries, 'data/corrections.json', []),
-      validation: readJson(entries, 'data/validation.json', []),\n      relationships: readJson(entries, 'data/relationships.json', []),
+      validation: readJson(entries, 'data/validation.json', []),
+      relationships: readJson(entries, 'data/relationships.json', []),
       audit_log: readJson(entries, 'data/audit_log.json', [])
     },
     sources: { source_registry: readJson(entries, 'sources/source_registry.json', []) },
