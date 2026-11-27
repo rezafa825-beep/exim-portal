@@ -8,13 +8,13 @@ export const EXPORT_PRESETS = [
 
 const DOC_FIELDS = [
   { key: 'document_type', label: 'Jenis BC', type: 'text' },
-  { key: 'aju_number', label: 'Nomor Aju', type: 'text' },
-  { key: 'registration_number', label: 'Nomor Daftar', type: 'text' },
+  { key: 'nomor_aju', label: 'Nomor Aju', type: 'text' },
+  { key: 'nomor_daftar', label: 'Nomor Daftar', type: 'text' },
   { key: 'business_status', label: 'Status Dokumen', type: 'text' },
   { key: 'amendment_status', label: 'Status Amendment', type: 'text' },
   { key: 'period_id', label: 'Period ID', type: 'text' },
-  { key: 'dates.registration', label: 'Tanggal Daftar', type: 'date' },
-  { key: 'dates.declaration', label: 'Tanggal Pernyataan', type: 'date' }
+  { key: 'tanggal_daftar', label: 'Tanggal Daftar', type: 'date' },
+  { key: 'tanggal_pernyataan', label: 'Tanggal Pernyataan', type: 'date' }
 ];
 const ITEM_FIELDS = [
   { key: 'document_id', label: 'Document ID', type: 'text' },
@@ -217,4 +217,35 @@ export function downloadExportWorkbook(workbook, fileName) {
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1500);
   return bytes.byteLength;
+}
+
+export function getExportFields(entityType = 'DOCUMENT') {
+  return (entityType === 'ITEM' ? ITEM_FIELDS : DOC_FIELDS).map(field => ({ ...field }));
+}
+
+export function saveExportProfile(project, { name, entity_type = 'DOCUMENT', columns = [] }) {
+  const label = String(name || '').trim();
+  if (!label) throw new Error('Nama profil export wajib diisi.');
+  const fields = getExportFields(entity_type);
+  const selected = [...new Set(columns)].filter(key => fields.some(field => field.key === key));
+  if (!selected.length) throw new Error('Pilih minimal satu kolom profil export.');
+  const next = structuredClone(project);
+  if (!Array.isArray(next.settings.export.profiles)) next.settings.export.profiles = [];
+  const profileId = `EXPORT-PROFILE-${crypto.randomUUID()}`;
+  next.settings.export.profiles.push({
+    profile_id: profileId,
+    name: label,
+    entity_type,
+    columns: selected,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  });
+  next.data.audit_log.push({
+    event_id: `AUDIT-${crypto.randomUUID()}`,
+    event_type: 'EXPORT_PROFILE_SAVED',
+    description: `Profil Custom Export "${label}" disimpan.`,
+    created_at: new Date().toISOString(),
+    operator_id: next.settings?.operator?.operator_id || 'LOCAL-USER-001'
+  });
+  return next;
 }
