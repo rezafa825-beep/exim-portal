@@ -33,7 +33,8 @@ function normalizeDocument(input, sourceId) {
   return {
     document_id: input.document_id || makeId('DOC'),
     document_type: input.document_type || 'UNKNOWN',
-    aju_number: input.aju_number ?? current.aju_number ?? current.nomor_aju ?? null,\n    document_number: input.document_number ?? current.document_number ?? null,
+    aju_number: input.aju_number ?? current.aju_number ?? current.nomor_aju ?? null,
+    document_number: input.document_number ?? current.document_number ?? null,
     registration_number: input.registration_number ?? current.registration_number ?? null,
     dates: clone(input.dates || current.dates || {}),
     parties: clone(input.parties || current.parties || {}),
