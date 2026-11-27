@@ -33,7 +33,7 @@ function normalizeDocument(input, sourceId) {
   return {
     document_id: input.document_id || makeId('DOC'),
     document_type: input.document_type || 'UNKNOWN',
-    document_number: input.document_number ?? current.document_number ?? null,
+    aju_number: input.aju_number ?? current.aju_number ?? current.nomor_aju ?? null,\n    document_number: input.document_number ?? current.document_number ?? null,
     registration_number: input.registration_number ?? current.registration_number ?? null,
     dates: clone(input.dates || current.dates || {}),
     parties: clone(input.parties || current.parties || {}),
@@ -227,8 +227,8 @@ export function searchDocuments(project, query = '') {
   if (!term) return [...project.data.documents];
   return project.data.documents.filter(row => {
     const text = [
-      row.document_type, row.document_number, row.registration_number,
-      row.current_data?.document_number, row.current_data?.registration_number,
+      row.document_type, row.aju_number, row.document_number, row.registration_number,
+      row.current_data?.nomor_aju, row.current_data?.aju_number, row.current_data?.document_number, row.current_data?.registration_number,
       row.current_data?.parties?.sender?.name, row.current_data?.parties?.receiver?.name
     ].filter(Boolean).join(' ').toLowerCase();
     return text.includes(term);
