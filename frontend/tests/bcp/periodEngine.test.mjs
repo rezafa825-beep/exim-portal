@@ -45,3 +45,13 @@ test('document period assignment and summary preserve document/item counts', () 
   assert.equal(summary.documents_by_type.BC27_IN, 1);
   assert.throws(() => assignDocumentToPeriod(project, 'DOC-1', periodId), /sudah berada/);
 });
+
+test('closed source period cannot have documents moved out until reopened', () => {
+  let project = createMonthlyPeriod(projectWithDocument(), { year: 2026, month: 10 });
+  project = createMonthlyPeriod(project, { year: 2026, month: 11 });
+  const oldPeriod = project.data.periods.find(row => row.period_key === '2026-10');
+  const newPeriod = project.data.periods.find(row => row.period_key === '2026-11');
+  project = assignDocumentToPeriod(project, 'DOC-1', oldPeriod.period_id);
+  project = changeMonthlyPeriodStatus(project, oldPeriod.period_id, 'CLOSED', 'Periode lama selesai.');
+  assert.throws(() => assignDocumentToPeriod(project, 'DOC-1', newPeriod.period_id, 'Pindah periode.'), /Periode asal CLOSED/);
+});
