@@ -17,6 +17,14 @@ async function sha256Hex(bytes) {
   return Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, '0')).join('');
 }
 
+function safeInternalPath(path) {
+  return typeof path === 'string' &&
+    path.startsWith('sources/') &&
+    !path.startsWith('/') &&
+    !path.includes('\\') &&
+    !path.split('/').some(part => part === '..' || part === '.');
+}
+
 export async function buildProjectArchive(project) {
   const errors = validateProject(project);
   if (errors.length) throw new Error(errors.join(' '));
@@ -32,6 +40,8 @@ export async function buildProjectArchive(project) {
   const entries = {
     'data/documents.json': jsonBytes(normalized.data.documents),
     'data/items.json': jsonBytes(normalized.data.items),
+    'data/raw_materials.json': jsonBytes(normalized.data.raw_materials),
+    'data/raw_material_tariffs.json': jsonBytes(normalized.data.raw_material_tariffs),
     'data/periods.json': jsonBytes(normalized.data.periods),
     'data/corrections.json': jsonBytes(normalized.data.corrections),
     'data/validation.json': jsonBytes(normalized.data.validation),
@@ -40,6 +50,11 @@ export async function buildProjectArchive(project) {
     'sources/source_registry.json': jsonBytes(normalized.sources.source_registry),
     'settings/project_settings.json': jsonBytes(normalized.settings)
   };
+
+  for (const [path, bytes] of Object.entries(normalized.sources.files || {})) {
+    if (!safeInternalPath(path)) throw new Error('Lokasi file sumber di dalam proyek tidak valid.');
+    entries[path] = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  }
 
   const checksums = {};
   for (const [path, bytes] of Object.entries(entries)) {
@@ -63,54 +78,46 @@ function readJson(entries, path, fallback) {
 
 function assertSafeArchive(entries) {
   const names = Object.keys(entries);
-  if (names.length > MAX_ARCHIVE_ENTRIES) {
-    throw new Error('Proyek berisi terlalu banyak file internal.');
-  }
+  if (names.length > MAX_ARCHIVE_ENTRIES) throw new Error('Proyek berisi terlalu banyak file internal.');
   let total = 0;
   for (const name of names) {
     if (name.startsWith('/') || name.includes('\\') || name.split('/').some(part => part === '..' || part === '.')) {
       throw new Error('Arsip berisi jalur file yang tidak aman.');
     }
     total += entries[name]?.byteLength || 0;
-    if (total > MAX_UNCOMPRESSED_BYTES) {
-      throw new Error('Ukuran hasil ekstraksi proyek melewati batas keamanan 750 MB.');
-    }
+    if (total > MAX_UNCOMPRESSED_BYTES) throw new Error('Ukuran hasil ekstraksi proyek melewati batas keamanan 750 MB.');
   }
 }
 
 export async function readProjectArchive(file) {
-  if (!file || !/\.bcp$/i.test(file.name)) {
-    throw new Error('Pilih file proyek dengan ekstensi .bcp.');
-  }
-  if (file.size > MAX_PROJECT_FILE_BYTES) {
-    throw new Error('Ukuran file proyek melebihi batas 250 MB.');
-  }
+  if (!file || !/\.bcp$/i.test(file.name)) throw new Error('Pilih file proyek dengan ekstensi .bcp.');
+  if (file.size > MAX_PROJECT_FILE_BYTES) throw new Error('Ukuran file proyek melebihi batas 250 MB.');
 
   const input = new Uint8Array(await file.arrayBuffer());
   let entries;
-  try {
-    entries = unzipSync(input);
-  } catch {
-    throw new Error('File .bcp rusak atau bukan arsip proyek yang valid.');
-  }
+  try { entries = unzipSync(input); }
+  catch { throw new Error('File .bcp rusak atau bukan arsip proyek yang valid.'); }
 
   assertSafeArchive(entries);
   const manifest = readJson(entries, 'manifest.json', null);
-  if (!manifest || manifest.format !== BCP_FORMAT) {
-    throw new Error('Manifest tidak ditemukan atau format proyek tidak dikenali.');
-  }
+  if (!manifest || manifest.format !== BCP_FORMAT) throw new Error('Manifest tidak ditemukan atau format proyek tidak dikenali.');
   if (manifest.format_version !== BCP_FORMAT_VERSION) {
     throw new Error(`Versi format proyek ${manifest.format_version || 'tidak diketahui'} belum didukung oleh aplikasi ini.`);
   }
-  if (!manifest.checksums || typeof manifest.checksums !== 'object') {
-    throw new Error('Manifest tidak memiliki checksum integritas.');
-  }
+  if (!manifest.checksums || typeof manifest.checksums !== 'object') throw new Error('Manifest tidak memiliki checksum integritas.');
 
   for (const [path, expected] of Object.entries(manifest.checksums)) {
     if (!entries[path]) throw new Error('File internal hilang: ' + path);
     const actual = await sha256Hex(entries[path]);
-    if (actual !== expected) {
-      throw new Error('Pemeriksaan integritas gagal pada ' + path + '. File proyek mungkin berubah atau rusak.');
+    if (actual !== expected) throw new Error('Pemeriksaan integritas gagal pada ' + path + '. File proyek mungkin berubah atau rusak.');
+  }
+
+  const sourceRegistry = readJson(entries, 'sources/source_registry.json', []);
+  const sourceFiles = {};
+  for (const source of sourceRegistry) {
+    if (source.internal_path && entries[source.internal_path]) {
+      if (!safeInternalPath(source.internal_path)) throw new Error('Lokasi file sumber tidak aman.');
+      sourceFiles[source.internal_path] = entries[source.internal_path];
     }
   }
 
@@ -119,13 +126,15 @@ export async function readProjectArchive(file) {
     data: {
       documents: readJson(entries, 'data/documents.json', []),
       items: readJson(entries, 'data/items.json', []),
+      raw_materials: readJson(entries, 'data/raw_materials.json', []),
+      raw_material_tariffs: readJson(entries, 'data/raw_material_tariffs.json', []),
       periods: readJson(entries, 'data/periods.json', []),
       corrections: readJson(entries, 'data/corrections.json', []),
       validation: readJson(entries, 'data/validation.json', []),
       relationships: readJson(entries, 'data/relationships.json', []),
       audit_log: readJson(entries, 'data/audit_log.json', [])
     },
-    sources: { source_registry: readJson(entries, 'sources/source_registry.json', []) },
+    sources: { source_registry: sourceRegistry, files: sourceFiles },
     settings: readJson(entries, 'settings/project_settings.json', {})
   };
 
