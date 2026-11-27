@@ -43,7 +43,7 @@ function normalizeDocument(input, sourceId) {
     processing_status: 'COMPLETED',
     business_status: input.business_status || 'CONFIRMED',
     amendment_status: 'ORIGINAL',
-    original_data: clone(current),
+    original_data: clone(input.staging_original_data || current),
     current_data: clone(current),
     extension: clone(input.extension || {}),
     created_at: now,
