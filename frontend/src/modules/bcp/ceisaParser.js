@@ -24,22 +24,20 @@ function safeValue(value) {
 }
 
 function worksheetBounds(sheet) {
-  let minRow = Infinity, minCol = Infinity, maxRow = -1, maxCol = -1;
   const addresses = Object.keys(sheet).filter(key => /^[A-Z]{1,3}[0-9]+$/.test(key));
+  if (!addresses.length) return null;
+  let minRow = Infinity, minCol = Infinity, maxRow = -1, maxCol = -1;
   for (const address of addresses) {
     const cell = XLSX.utils.decode_cell(address);
-    minRow = Math.min(minRow, cell.r); minCol = Math.min(minCol, cell.c);
-    maxRow = Math.max(maxRow, cell.r); maxCol = Math.max(maxCol, cell.c);
+    minRow = Math.min(minRow, cell.r);
+    minCol = Math.min(minCol, cell.c);
+    maxRow = Math.max(maxRow, cell.r);
+    maxCol = Math.max(maxCol, cell.c);
   }
-  if (sheet['!ref']) {
-    try {
-      const range = XLSX.utils.decode_range(sheet['!ref']);
-      minRow = Math.min(minRow, range.s.r); minCol = Math.min(minCol, range.s.c);
-      maxRow = Math.max(maxRow, range.e.r); maxCol = Math.max(maxCol, range.e.c);
-    } catch { /* Invalid dimension metadata is ignored; cell addresses remain authoritative. */ }
+  if (maxRow >= 1048576 || maxCol >= 256) {
+    throw new Error('Worksheet melewati batas pemrosesan BCP (maksimal 1.048.576 baris dan 256 kolom).');
   }
-  if (maxRow < 0 || maxCol < 0) return null;
-  return { minRow: Math.max(0, minRow), minCol: Math.max(0, minCol), maxRow, maxCol };
+  return { minRow, minCol, maxRow, maxCol };
 }
 
 function extractWorksheet(workbook, sheetName, sourceId) {
@@ -49,31 +47,47 @@ function extractWorksheet(workbook, sheetName, sourceId) {
   const bounds = worksheetBounds(sheet);
   if (!bounds) return { name: actualName, exists: true, headers: [], records: [] };
 
-  const matrix = [];
-  for (let row = bounds.minRow; row <= bounds.maxRow; row++) {
-    const values = [];
-    for (let col = bounds.minCol; col <= bounds.maxCol; col++) {
-      const address = XLSX.utils.encode_cell({ r: row, c: col });
-      values.push(safeValue(sheet[address]?.v ?? null));
-    }
-    matrix.push(values);
+  const rowCells = new Map();
+  for (const address of Object.keys(sheet)) {
+    if (!/^[A-Z]{1,3}[0-9]+$/.test(address)) continue;
+    const cell = XLSX.utils.decode_cell(address);
+    if (!rowCells.has(cell.r)) rowCells.set(cell.r, new Map());
+    rowCells.get(cell.r).set(cell.c, safeValue(sheet[address]?.v ?? null));
   }
 
-  const headerOffset = matrix.findIndex(row => row.filter(value => value !== null && normalizeText(value) !== '').length >= 2);
-  if (headerOffset < 0) return { name: actualName, exists: true, headers: [], records: [] };
-  const headers = matrix[headerOffset].map(value => normalizeText(value).toUpperCase());
+  const width = bounds.maxCol - bounds.minCol + 1;
+  const rowNumbers = [...rowCells.keys()].sort((a, b) => a - b);
+  const headerRow = rowNumbers.find(rowNumber => {
+    const cells = rowCells.get(rowNumber);
+    let populated = 0;
+    for (let col = bounds.minCol; col <= bounds.maxCol; col++) {
+      const value = cells.get(col);
+      if (value !== null && value !== undefined && normalizeText(value) !== '') populated++;
+      if (populated >= 2) return true;
+    }
+    return false;
+  });
+  if (headerRow === undefined) return { name: actualName, exists: true, headers: [], records: [] };
+
+  const headerCells = rowCells.get(headerRow);
+  const headers = Array.from({ length: width }, (_, index) =>
+    normalizeText(headerCells.get(bounds.minCol + index)).toUpperCase()
+  );
   const records = [];
 
-  for (let index = headerOffset + 1; index < matrix.length; index++) {
-    const values = matrix[index];
+  for (const rowNumber of rowNumbers) {
+    if (rowNumber <= headerRow) continue;
+    const cells = rowCells.get(rowNumber);
+    const values = Array.from({ length: width }, (_, index) => cells.get(bounds.minCol + index) ?? null);
     if (!values.some(value => value !== null && value !== '')) continue;
+
     const fields = headers.map((header, columnIndex) => ({
       name: header || `UNNAMED_${columnIndex + 1}`,
       column_index: bounds.minCol + columnIndex,
       column_letter: XLSX.utils.encode_col(bounds.minCol + columnIndex),
       value: values[columnIndex] ?? null
     }));
-    const sourceRow = bounds.minRow + index + 1;
+    const sourceRow = rowNumber + 1;
     const lookup = (name, occurrence = 0) => {
       const matches = fields.filter(field => field.name === name);
       return matches[occurrence]?.value ?? null;
