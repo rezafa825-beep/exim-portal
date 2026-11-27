@@ -67,7 +67,7 @@ function assertSafeArchive(entries) {
   }
   let total = 0;
   for (const name of names) {
-    if (name.startsWith('/') || name.includes('\\\\') || name.split('/').some(part => part === '..' || part === '.')) {
+    if (name.startsWith('/') || name.includes('\\') || name.split('/').some(part => part === '..' || part === '.')) {
       throw new Error('Arsip berisi jalur file yang tidak aman.');
     }
     total += entries[name]?.byteLength || 0;
