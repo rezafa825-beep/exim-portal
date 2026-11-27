@@ -5,6 +5,7 @@ import { deleteRecovery, getRecovery, listRecentProjects, saveRecentProject, sav
 import { downloadProjectArchive, readProjectArchive } from './projectPackage';
 import { getDocumentView, searchDocuments, searchItems } from './registryEngine';
 import { commitPartialImport, evaluateStagedImport } from './importEngine';
+import { buildDuplicateReview, recordDuplicateDecision } from './duplicateReviewEngine';
 
 function formatDate(value) {
   if (!value) return 'Belum pernah disimpan';
@@ -26,6 +27,7 @@ export default function BCP() {
   const [selectedDocumentId, setSelectedDocumentId] = useState(null);
   const [stagedFiles, setStagedFiles] = useState([]);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState([]);
+  const [duplicateFilter, setDuplicateFilter] = useState('ALL');
   const [directionOverrides, setDirectionOverrides] = useState({});
   const [stageBusy, setStageBusy] = useState(false);
   const [uploadDrag, setUploadDrag] = useState(false);
@@ -215,6 +217,21 @@ export default function BCP() {
   const itemRows = project ? searchItems(project, itemQuery) : [];
   const selectedDocument = project && selectedDocumentId ? getDocumentView(project, selectedDocumentId) : null;
   const stagedEvaluation = project ? evaluateStagedImport(project, stagedFiles) : [];
+  const duplicateCandidates = project ? buildDuplicateReview(project, stagedFiles) : [];
+  const decideDuplicate = (candidate, decision) => {
+    const reason = window.prompt('Masukkan alasan keputusan duplikasi:');
+    if (!reason || !reason.trim()) return;
+    try {
+      setProject(current => recordDuplicateDecision(current, candidate, decision, reason));
+      if (candidate.staged_document_id && ['USE_EXISTING', 'USE_NEW', 'KEEP_BOTH'].includes(decision)) {
+        setSelectedDocumentIds(current => current.includes(candidate.staged_document_id) ? current : [...current, candidate.staged_document_id]);
+      } else if (candidate.staged_document_id) {
+        setSelectedDocumentIds(current => current.filter(id => id !== candidate.staged_document_id));
+      }
+      setMessage('Keputusan Duplicate Review dicatat dalam Audit Trail. Periksa kembali Import Preview sebelum commit.');
+      setError('');
+    } catch (e) { setError(e.message || 'Keputusan duplikasi gagal disimpan.'); }
+  };
   const go = next => { setView(next); setError(''); };
 
   return (
@@ -253,6 +270,7 @@ export default function BCP() {
         {project && <button className={view === 'upload' ? 'active' : ''} onClick={() => go('upload')}>Upload CEISA</button>}
         {project && <button className={view === 'documents' ? 'active' : ''} onClick={() => { setSelectedDocumentId(null); go('documents'); }}>Document Registry</button>}
         {project && <button className={view === 'items' ? 'active' : ''} onClick={() => go('items')}>Item Registry</button>}
+        {project && <button className={view === 'duplicates' ? 'active' : ''} onClick={() => go('duplicates')}>Duplicate Review {duplicateCandidates.length ? `(${duplicateCandidates.length})` : ''}</button>}
         {project && <button className={view === 'settings' ? 'active' : ''} onClick={() => go('settings')}>Pengaturan Proyek</button>}
         {project && <button className={view === 'diagnostics' ? 'active' : ''} onClick={() => go('diagnostics')}>System Diagnostics</button>}
       </nav>
@@ -344,7 +362,7 @@ export default function BCP() {
                   {file.reason && <div className="bcp-stage-reason">{file.reason}</div>}
                   {file.documents?.length > 0 && <div className="bcp-registry-table-wrap"><table className="bcp-registry-table"><thead><tr><th>Impor</th><th>Jenis BC</th><th>Nomor Aju</th><th>Nomor Daftar</th><th>Barang</th><th>Status</th><th>Arah transaksi</th></tr></thead><tbody>
                     {file.documents.map(row => {
-                      const canSelect = ['READY','NEEDS_REVIEW'].includes(row.status);
+                      const canSelect = ['READY','NEEDS_REVIEW','READY_WITH_DUPLICATE_DECISION','USE_EXISTING'].includes(row.status);
                       const override = directionOverrides[row.document_id] || '';
                       return <tr key={row.document_id}>
                         <td><input type="checkbox" checked={selectedDocumentIds.includes(row.document_id)} disabled={!canSelect || stageBusy} onChange={e => setSelectedDocumentIds(current => e.target.checked ? [...current, row.document_id] : current.filter(id => id !== row.document_id))}/></td>
@@ -361,6 +379,66 @@ export default function BCP() {
             </>
           )}
           <div className="bcp-security-note"><strong>Aturan impor</strong><span>Data sumber CEISA tidak diubah. Dokumen valid dan unik dapat diimpor terpisah; error, duplikasi, dan klasifikasi yang belum jelas tetap ditahan. File sumber yang sudah dipakai akan disertakan dalam proyek .bcp.</span></div>
+        </section>
+      )}
+
+      {view === 'duplicates' && project && (
+        <section className="bcp-content">
+          <div className="bcp-section-heading">
+            <div><span className="bcp-eyebrow">DUPLICATE CONTROL CENTER</span><h2>Duplicate Review</h2><p>Bandingkan kandidat dengan data proyek sebelum memutuskan apakah transaksi baru akan digunakan.</p></div>
+          </div>
+          <div className="bcp-registry-toolbar">
+            <select value={duplicateFilter} onChange={e => setDuplicateFilter(e.target.value)}>
+              <option value="ALL">Semua kandidat</option>
+              <option value="UNRESOLVED">Belum diputuskan</option>
+              <option value="DECIDED">Sudah diputuskan</option>
+              <option value="DOCUMENT">Dokumen</option>
+              <option value="FILE">File sumber</option>
+            </select>
+            <span>{duplicateCandidates.length} kandidat ditemukan</span>
+          </div>
+          {duplicateCandidates.filter(row => {
+            if (duplicateFilter === 'UNRESOLVED') return !row.decision;
+            if (duplicateFilter === 'DECIDED') return !!row.decision;
+            if (duplicateFilter === 'DOCUMENT' || duplicateFilter === 'FILE') return row.candidate_type === duplicateFilter;
+            return true;
+          }).length === 0 ? (
+            <div className="bcp-empty"><div>✓</div><strong>Tidak ada kandidat duplikasi</strong><span>Kandidat akan muncul setelah file CEISA diperiksa pada halaman Upload.</span></div>
+          ) : duplicateCandidates.filter(row => {
+            if (duplicateFilter === 'UNRESOLVED') return !row.decision;
+            if (duplicateFilter === 'DECIDED') return !!row.decision;
+            if (duplicateFilter === 'DOCUMENT' || duplicateFilter === 'FILE') return row.candidate_type === duplicateFilter;
+            return true;
+          }).map(candidate => (
+            <article className="bcp-stage-file" key={candidate.candidate_id}>
+              <div className="bcp-stage-file-head">
+                <div><strong>{candidate.candidate_type === 'FILE' ? candidate.file_name : `${candidate.document_type} · ${candidate.aju_number || 'Tanpa Nomor Aju'}`}</strong><small>{candidate.match_type} · {candidate.confidence} · {candidate.file_name}</small></div>
+                <span className={'bcp-stage-badge ' + (candidate.decision ? 'ready' : 'warning')}>{candidate.decision?.decision || 'NEEDS DECISION'}</span>
+              </div>
+              <div className="bcp-stage-reason">{candidate.reason}</div>
+              {candidate.candidate_type === 'DOCUMENT' ? (
+                <>
+                  <div className="bcp-info-grid">
+                    <div><span>Data staging</span><strong>{candidate.aju_number || '—'} · {candidate.registration_number || '—'}</strong></div>
+                    <div><span>Dokumen existing</span><strong>{candidate.existing_aju_number || candidate.existing_document_id || 'Dokumen lain dalam batch'}</strong></div>
+                  </div>
+                  <div className="bcp-import-actions">
+                    <span>Setiap keputusan membutuhkan alasan dan tercatat di Audit Trail.</span>
+                    <div className="bcp-heading-actions">
+                      <button className="bcp-button bcp-button-secondary" onClick={() => decideDuplicate(candidate, 'USE_EXISTING')}>Use Existing</button>
+                      <button className="bcp-button bcp-button-secondary" onClick={() => decideDuplicate(candidate, 'USE_NEW')}>Use New</button>
+                      <button className="bcp-button bcp-button-secondary" onClick={() => decideDuplicate(candidate, 'KEEP_BOTH')}>Keep Both</button>
+                      <button className="bcp-button bcp-button-quiet" onClick={() => decideDuplicate(candidate, 'DEFER_REVIEW')}>Defer Review</button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="bcp-security-note"><strong>File duplikat persis</strong><span>SHA-256 file ini sudah terdaftar. File tidak akan diimpor ulang sebagai sumber baru. Periksa apakah dokumen terkait sudah tercatat dalam proyek.</span></div>
+              )}
+              {candidate.decision && <div className="bcp-stage-issues"><b>Alasan keputusan:</b> {candidate.decision.reason}<br/><b>Waktu:</b> {formatDate(candidate.decision.decided_at)}</div>}
+            </article>
+          ))}
+          <div className="bcp-security-note"><strong>Aturan Duplicate Review</strong><span>Use Existing menautkan file sumber ke record lama tanpa membuat transaksi baru. Use New dan Keep Both mempertahankan record lama serta mencatat hubungan antar dokumen. Defer Review menahan dokumen dari Partial Import. Keputusan tidak menghapus data sumber.</span></div>
         </section>
       )}
 
