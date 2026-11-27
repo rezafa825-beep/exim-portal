@@ -220,7 +220,14 @@ export function addDocumentRelationship(project, {
 export function getDocumentView(project, documentId) {
   const document = project.data.documents.find(row => row.document_id === documentId);
   if (!document) return null;
-  return { ...clone(document), items: project.data.items.filter(row => row.document_id === documentId).map(clone) };
+  const items = project.data.items.filter(row => row.document_id === documentId).map(item => ({
+    ...clone(item),
+    raw_materials: project.data.raw_materials.filter(row => row.item_id === item.item_id).map(material => ({
+      ...clone(material),
+      tariffs: project.data.raw_material_tariffs.filter(row => row.raw_material_id === material.raw_material_id).map(clone)
+    }))
+  }));
+  return { ...clone(document), items };
 }
 
 export function searchDocuments(project, query = '') {
@@ -257,6 +264,78 @@ export function getItemTransactionHistory(project, itemCode) {
     .sort((a, b) => new Date(a.document?.dates?.registration || a.document?.current_data?.dates?.registration || 0) - new Date(b.document?.dates?.registration || b.document?.current_data?.dates?.registration || 0));
 }
 
+
+export function appendImportedDocumentBundle(project, {
+  document, items = [], raw_materials = [], raw_material_tariffs = [], source_id = null
+}) {
+  let next = appendImportedDocument(project, document, items, source_id);
+  const documentId = next.data.documents.at(-1).document_id;
+  const itemBySequence = new Map(
+    next.data.items.filter(item => item.document_id === documentId)
+      .map(item => [String(item.item_sequence), item])
+  );
+  const rawMaterialByKey = new Map();
+
+  for (const input of raw_materials) {
+    const item = itemBySequence.get(String(input.item_sequence));
+    if (!item) throw new Error(`Bahan baku seri ${input.raw_material_sequence} tidak memiliki parent Seri Barang ${input.item_sequence}.`);
+    const current = clone(input.current_data || input.data || {});
+    const rawMaterial = {
+      raw_material_id: input.raw_material_id || makeId('BB'),
+      document_id: documentId,
+      item_id: item.item_id,
+      item_sequence: item.item_sequence,
+      raw_material_sequence: input.raw_material_sequence ?? current.seri_bahan_baku ?? null,
+      origin_code: input.origin_code ?? current.kode_asal_bahan_baku ?? null,
+      item_code: input.item_code ?? current.item_code ?? null,
+      description: input.description ?? current.description ?? null,
+      quantity: input.quantity ?? current.quantity ?? null,
+      unit: input.unit ?? current.unit ?? null,
+      source_refs: [...new Set([...(input.source_refs || []), ...(source_id ? [source_id] : [])])],
+      source_locations: clone(input.source_locations || []),
+      original_data: clone(current),
+      current_data: clone(current),
+      extension: clone(input.extension || {}),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    const key = `${String(item.item_sequence)}::${String(rawMaterial.raw_material_sequence)}`;
+    if (rawMaterialByKey.has(key)) throw new Error('Seri bahan baku ganda ditemukan pada satu seri barang.');
+    rawMaterialByKey.set(key, rawMaterial);
+    next.data.raw_materials.push(rawMaterial);
+  }
+
+  for (const input of raw_material_tariffs) {
+    const key = `${String(input.item_sequence)}::${String(input.raw_material_sequence)}`;
+    const rawMaterial = rawMaterialByKey.get(key) || next.data.raw_materials.find(row =>
+      row.document_id === documentId &&
+      String(row.item_sequence) === String(input.item_sequence) &&
+      String(row.raw_material_sequence) === String(input.raw_material_sequence)
+    );
+    if (!rawMaterial) throw new Error('Tarif bahan baku tidak memiliki parent bahan baku.');
+    const current = clone(input.current_data || input.data || {});
+    next.data.raw_material_tariffs.push({
+      raw_material_tariff_id: input.raw_material_tariff_id || makeId('BBT'),
+      document_id: documentId,
+      item_id: rawMaterial.item_id,
+      raw_material_id: rawMaterial.raw_material_id,
+      item_sequence: input.item_sequence,
+      raw_material_sequence: input.raw_material_sequence,
+      tax_code: input.tax_code ?? current.kode_pungutan ?? null,
+      tariff_code: input.tariff_code ?? current.kode_tarif ?? null,
+      tariff: input.tariff ?? current.tarif ?? null,
+      source_refs: [...new Set([...(input.source_refs || []), ...(source_id ? [source_id] : [])])],
+      source_location: clone(input.source_location || null),
+      original_data: clone(current),
+      current_data: clone(current),
+      extension: clone(input.extension || {}),
+      created_at: new Date().toISOString()
+    });
+  }
+
+  return refreshProjectCounts(next);
+}
+
 export function validateRegistryIntegrity(project) {
   const errors = [];
   const documentIds = new Set(project.data.documents.map(row => row.document_id));
@@ -270,6 +349,15 @@ export function validateRegistryIntegrity(project) {
   for (const document of project.data.documents) {
     if (seenDocuments.has(document.document_id)) errors.push(`Document ID duplikat: ${document.document_id}`);
     seenDocuments.add(document.document_id);
+  }
+  const rawMaterialIds = new Set();
+  for (const material of project.data.raw_materials) {
+    if (!itemIds.has(material.item_id)) errors.push(`Bahan baku ${material.raw_material_id} tidak memiliki item induk.`);
+    if (rawMaterialIds.has(material.raw_material_id)) errors.push(`Raw material ID duplikat: ${material.raw_material_id}`);
+    rawMaterialIds.add(material.raw_material_id);
+  }
+  for (const tariff of project.data.raw_material_tariffs) {
+    if (!rawMaterialIds.has(tariff.raw_material_id)) errors.push(`Tarif ${tariff.raw_material_tariff_id} tidak memiliki bahan baku induk.`);
   }
   for (const relationship of project.data.relationships) {
     if (!documentIds.has(relationship.source_document_id) || !documentIds.has(relationship.target_document_id)) {
