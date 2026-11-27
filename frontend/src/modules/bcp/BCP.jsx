@@ -4,6 +4,8 @@ import { createEmptyProject, refreshProjectCounts, validateProject } from './pro
 import { deleteRecovery, getRecovery, listRecentProjects, saveRecentProject, saveRecovery } from './projectStorage';
 import { downloadProjectArchive, readProjectArchive } from './projectPackage';
 import { getDocumentView, searchDocuments, searchItems } from './registryEngine';
+import { parseBC27File } from './ceisaParser';
+import { commitPartialImport, evaluateStagedImport } from './importEngine';
 
 function formatDate(value) {
   if (!value) return 'Belum pernah disimpan';
@@ -23,6 +25,12 @@ export default function BCP() {
   const [documentQuery, setDocumentQuery] = useState('');
   const [itemQuery, setItemQuery] = useState('');
   const [selectedDocumentId, setSelectedDocumentId] = useState(null);
+  const [stagedFiles, setStagedFiles] = useState([]);
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState([]);
+  const [directionOverrides, setDirectionOverrides] = useState({});
+  const [stageBusy, setStageBusy] = useState(false);
+  const [uploadDrag, setUploadDrag] = useState(false);
+  const uploadInput = useRef(null);
   const [projectName, setProjectName] = useState('BCP PROJECT 2026');
   const [companyName, setCompanyName] = useState('PT Chinli Plastic Materials Indonesia');
   const [showCreate, setShowCreate] = useState(false);
@@ -159,6 +167,42 @@ export default function BCP() {
     refreshRecent();
   };
 
+  const addUploadFiles = async fileList => {
+    if (!project) return;
+    const files = [...(fileList || [])].filter(file => /\\.(xlsx|xls|xlsm)$/i.test(file.name));
+    if (!files.length) { setError('Pilih file Excel CEISA (.xlsx, .xls, atau .xlsm).'); return; }
+    setStageBusy(true); setError(''); setMessage('Membaca dan mengidentifikasi file CEISA...');
+    const parsed = [];
+    for (const file of files) {
+      try {
+        parsed.push(await parseBC27File(file, project.manifest.company_name));
+      } catch (e) {
+        parsed.push({ file_name: file.name, parse_error: e.message || 'File gagal diproses.' });
+      }
+    }
+    setStagedFiles(current => [...current, ...parsed]);
+    const readyIds = parsed.flatMap(file => (file.documents || []).filter(row => row.validation?.status !== 'ERROR' && row.document.document_type !== 'BC27_UNKNOWN').map(row => row.document.document_id));
+    setSelectedDocumentIds(current => [...new Set([...current, ...readyIds])]);
+    setMessage(`${parsed.length} file selesai diperiksa. Tinjau hasil klasifikasi dan duplikasi sebelum impor.`);
+    setStageBusy(false);
+    if (uploadInput.current) uploadInput.current.value = '';
+  };
+
+  const confirmPartialImport = () => {
+    if (!project || !selectedDocumentIds.length) return;
+    setStageBusy(true); setError('');
+    try {
+      const result = commitPartialImport(project, stagedFiles, selectedDocumentIds, directionOverrides);
+      setProject(result.project);
+      const imported = new Set(result.imported_document_ids);
+      setStagedFiles(current => current.map(file => file.parse_error ? file : ({ ...file, documents: file.documents.filter(entry => !imported.has(entry.document.document_id)) })).filter(file => file.parse_error || file.documents.length));
+      setSelectedDocumentIds(current => current.filter(id => !imported.has(id)));
+      setDirectionOverrides(current => Object.fromEntries(Object.entries(current).filter(([id]) => !imported.has(id))));
+      setMessage(`Partial Import selesai: ${result.summary.imported_documents} dokumen berhasil diimpor. ${result.summary.held_documents} record masih ditahan untuk pemeriksaan.`);
+    } catch (e) { setError(e.message || 'Import gagal.'); }
+    finally { setStageBusy(false); }
+  };
+
   const updateOperator = value => {
     setProject(current => refreshProjectCounts({
       ...current,
@@ -170,6 +214,7 @@ export default function BCP() {
   const documentRows = project ? searchDocuments(project, documentQuery) : [];
   const itemRows = project ? searchItems(project, itemQuery) : [];
   const selectedDocument = project && selectedDocumentId ? getDocumentView(project, selectedDocumentId) : null;
+  const stagedEvaluation = project ? evaluateStagedImport(project, stagedFiles) : [];
   const go = next => { setView(next); setError(''); };
 
   return (
@@ -205,6 +250,7 @@ export default function BCP() {
       <nav className="bcp-nav" aria-label="Navigasi BCP">
         <button className={view === 'projects' ? 'active' : ''} onClick={() => go('projects')}>Project Management</button>
         {project && <button className={view === 'dashboard' ? 'active' : ''} onClick={() => go('dashboard')}>Dashboard</button>}
+        {project && <button className={view === 'upload' ? 'active' : ''} onClick={() => go('upload')}>Upload CEISA</button>
         {project && <button className={view === 'documents' ? 'active' : ''} onClick={() => { setSelectedDocumentId(null); go('documents'); }}>Document Registry</button>}
         {project && <button className={view === 'items' ? 'active' : ''} onClick={() => go('items')}>Item Registry</button>}
         {project && <button className={view === 'settings' ? 'active' : ''} onClick={() => go('settings')}>Pengaturan Proyek</button>}
@@ -267,6 +313,54 @@ export default function BCP() {
           </div>
           <div className="bcp-section-title"><h3>Informasi Proyek</h3></div>
           <div className="bcp-info-grid"><div><span>Project ID</span><code>{project.manifest.project_id}</code></div><div><span>Format</span><strong>{project.manifest.format} · {project.manifest.format_version}</strong></div><div><span>Schema Version</span><strong>{project.manifest.schema_version}</strong></div><div><span>Pembaruan</span><strong>{formatDate(project.manifest.updated_at)}</strong></div></div>
+        </section>
+      )}
+
+      {view === 'upload' && project && (
+        <section className="bcp-content">
+          <div className="bcp-section-heading"><div><span className="bcp-eyebrow">UNIFIED CEISA UPLOAD</span><h2>Upload BC 2.7</h2><p>Unggah Excel satu dokumen, workbook gabungan banyak dokumen, atau campuran keduanya dalam satu batch.</p></div></div>
+          <div className={'bcp-upload-drop ' + (uploadDrag ? 'dragging' : '')}
+            onDragOver={e => { e.preventDefault(); setUploadDrag(true); }}
+            onDragLeave={() => setUploadDrag(false)}
+            onDrop={e => { e.preventDefault(); setUploadDrag(false); addUploadFiles(e.dataTransfer.files); }}>
+            <div className="bcp-upload-icon">⇧</div><strong>Tarik &amp; lepas file Excel CEISA di sini</strong><span>atau pilih beberapa file sekaligus</span>
+            <button className="bcp-button bcp-button-secondary" onClick={() => uploadInput.current?.click()} disabled={stageBusy}>Pilih File Excel</button>
+            <input ref={uploadInput} type="file" accept=".xlsx,.xls,.xlsm" multiple hidden onChange={e => addUploadFiles(e.target.files)}/>
+            <small>BC 2.7 IN dan BC 2.7 OUT · Single Document dan Multi Document</small>
+          </div>
+          {stageBusy && <div className="bcp-notice">Memproses workbook di browser. Jangan tutup halaman ini.</div>}
+          <div className="bcp-import-summary">
+            <div><strong>{stagedFiles.length}</strong><span>File dalam staging</span></div>
+            <div><strong>{stagedFiles.reduce((sum, file) => sum + (file.documents?.length || 0), 0)}</strong><span>Dokumen ditemukan</span></div>
+            <div><strong>{stagedEvaluation.flatMap(file => file.documents || []).filter(row => row.status === 'READY').length}</strong><span>Siap diimpor</span></div>
+            <div><strong>{stagedEvaluation.flatMap(file => file.documents || []).filter(row => ['ERROR','POSSIBLE_DUPLICATE','NEEDS_REVIEW'].includes(row.status)).length}</strong><span>Perlu pemeriksaan</span></div>
+          </div>
+          {stagedFiles.length > 0 && (
+            <>
+              <div className="bcp-section-title"><h3>Import Preview</h3><button className="bcp-text-button" onClick={() => { setStagedFiles([]); setSelectedDocumentIds([]); setDirectionOverrides({}); }}>Bersihkan staging</button></div>
+              {stagedEvaluation.map((file, fileIndex) => (
+                <article className="bcp-stage-file" key={file.source_id || file.file_name || fileIndex}>
+                  <div className="bcp-stage-file-head"><div><strong>{file.file_name}</strong><small>{file.file_format || 'File gagal dibaca'} · {file.documents?.length || 0} dokumen</small></div><span className={'bcp-stage-badge ' + (file.status === 'STAGED' ? 'ready' : 'warning')}>{file.status}</span></div>
+                  {file.reason && <div className="bcp-stage-reason">{file.reason}</div>}
+                  {file.documents?.length > 0 && <div className="bcp-registry-table-wrap"><table className="bcp-registry-table"><thead><tr><th>Impor</th><th>Jenis BC</th><th>Nomor Aju</th><th>Nomor Daftar</th><th>Barang</th><th>Status</th><th>Arah transaksi</th></tr></thead><tbody>
+                    {file.documents.map(row => {
+                      const canSelect = ['READY','NEEDS_REVIEW'].includes(row.status);
+                      const override = directionOverrides[row.document_id] || '';
+                      return <tr key={row.document_id}>
+                        <td><input type="checkbox" checked={selectedDocumentIds.includes(row.document_id)} disabled={!canSelect || stageBusy} onChange={e => setSelectedDocumentIds(current => e.target.checked ? [...current, row.document_id] : current.filter(id => id !== row.document_id))}/></td>
+                        <td>{row.document_type}</td><td>{row.aju_number || '—'}</td><td>{row.registration_number || '—'}</td><td>{row.item_count}</td>
+                        <td><span className={'bcp-stage-badge ' + (row.status === 'READY' ? 'ready' : 'warning')}>{row.status}</span><small className="bcp-stage-reason">{row.reason}</small></td>
+                        <td>{row.status === 'NEEDS_REVIEW' ? <select value={override} onChange={e => { const value = e.target.value; setDirectionOverrides(current => ({ ...current, [row.document_id]: value })); if (value) setSelectedDocumentIds(current => current.includes(row.document_id) ? current : [...current, row.document_id]); }}><option value="">Pilih arah</option><option value="IN">BC 2.7 IN</option><option value="OUT">BC 2.7 OUT</option></select> : row.document_type.replace('BC27_', '')}</td>
+                      </tr>;
+                    })}
+                  </tbody></table></div>}
+                  {file.issues?.length > 0 && <details className="bcp-stage-issues"><summary>Detail validasi file ({file.issues.length})</summary>{file.issues.map((issue, i) => <div key={issue.code + i}><b>{issue.severity}</b> · {issue.message}</div>)}</details>}
+                </article>
+              ))}
+              <div className="bcp-import-actions"><span>{selectedDocumentIds.length} dokumen dipilih untuk Partial Import.</span><button className="bcp-button bcp-button-primary" onClick={confirmPartialImport} disabled={stageBusy || selectedDocumentIds.length === 0}>Konfirmasi Partial Import</button></div>
+            </>
+          )}
+          <div className="bcp-security-note"><strong>Aturan impor</strong><span>Data sumber CEISA tidak diubah. Dokumen valid dan unik dapat diimpor terpisah; error, duplikasi, dan klasifikasi yang belum jelas tetap ditahan. File sumber yang sudah dipakai akan disertakan dalam proyek .bcp.</span></div>
         </section>
       )}
 
