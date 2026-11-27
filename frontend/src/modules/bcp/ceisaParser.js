@@ -194,7 +194,7 @@ function normalizedDocument(header, related, classification, sourceId) {
   };
 }
 
-function buildItems(aju, barangRows, bahanRows, tariffRows, otherItemRows, sourceId, documentId) {
+function buildItems(aju, barangRows, bahanRows, tariffRows, otherItemRows, rawMaterialDocumentRows, sourceId, documentId) {
   const items = [];
   const rawMaterials = [];
   const rawMaterialTariffs = [];
@@ -291,10 +291,10 @@ function buildItems(aju, barangRows, bahanRows, tariffRows, otherItemRows, sourc
         })),
         original_data: materialCurrent,
         current_data: materialCurrent,
-        extension: { raw_fields: material.raw_fields }
+        extension: { raw_fields: material.raw_fields, related_documents: rawRows(linkedDocuments) }
       });
 
-      const linkedTariffs = tariffRows.filter(tariff =>
+      const linkedDocuments = rawMaterialDocumentRows.filter(detail =>\n        normalizeText(detail.get('SERI BARANG')) === sequence &&\n        normalizeText(detail.get('SERI BAHAN BAKU')) === materialSequence\n      );\n      const linkedTariffs = tariffRows.filter(tariff =>
         normalizeText(tariff.get('SERI BARANG')) === sequence &&
         normalizeText(tariff.get('SERI BAHAN BAKU')) === materialSequence
       );
@@ -383,7 +383,7 @@ export async function parseBC27File(file, companyName) {
     for (const name of DOCUMENT_SHEETS) related[name] = grouped[name]?.get(aju) || [];
     const barangRows = grouped.BARANG?.get(aju) || [];
     const bahanRows = grouped.BAHANBAKU?.get(aju) || [];
-    const tariffRows = grouped.BAHANBAKUTARIF?.get(aju) || [];
+    const tariffRows = grouped.BAHANBAKUTARIF?.get(aju) || [];\n    const rawMaterialDocumentRows = grouped.BAHANBAKUDOKUMEN?.get(aju) || [];
     const otherItemRows = [...ITEM_SHEETS].flatMap(name => grouped[name]?.get(aju) || []);
     const entities = related.ENTITAS || [];
     const classification = classifyDirection(entities, companyName);
@@ -396,7 +396,7 @@ export async function parseBC27File(file, companyName) {
     const documentId = `DOC-${crypto.randomUUID()}`;
     const document = normalizedDocument(header, related, classification, sourceId);
     document.document_id = documentId;
-    const built = buildItems(aju, barangRows, bahanRows, tariffRows, otherItemRows, sourceId, documentId);
+    const built = buildItems(aju, barangRows, bahanRows, tariffRows, otherItemRows, rawMaterialDocumentRows, sourceId, documentId);
     documents.push({
       document,
       items: built.items,
