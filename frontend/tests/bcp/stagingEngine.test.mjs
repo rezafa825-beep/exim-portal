@@ -23,7 +23,7 @@ test('staging correction changes normalized value but preserves original raw sou
   });
   assert.equal(result[0].documents[0].items[0].description, 'Corrected description');
   assert.equal(result[0].documents[0].items[0].current_data.description, 'Corrected description');
-  assert.equal(result[0].documents[0].items[0].original_data, undefined);
+  assert.equal(result[0].documents[0].items[0].staging_original_data.description, 'Old description');
   assert.equal(result[0].documents[0].staging_corrections[0].old_value, 'Old description');
 });
 
