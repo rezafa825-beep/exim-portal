@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createEmptyProject } from '../../src/modules/bcp/projectSchema.js';
-import { buildExportWorkbook, recordExportHistory, EXPORT_PRESETS, saveExportProfile } from '../../src/modules/bcp/exportEngine.js';
+import { buildExportWorkbook, buildExportPreview, recordExportHistory, EXPORT_PRESETS, saveExportProfile } from '../../src/modules/bcp/exportEngine.js';
 import * as XLSX from 'xlsx';
 
 function fixture() {
@@ -95,4 +95,24 @@ test('custom export applies filters, grouping, sorting, and label overrides', ()
   assert.deepEqual(rows[0], ['Group: Internal Code','Internal Code','Uraian Barang']);
   assert.equal(rows.length, 2);
   assert.equal(rows[1][1], '00123');
+});
+
+test('export preview matches the first rows of the generated workbook', () => {
+  const project = fixture();
+  const preview = buildExportPreview(project, { preset: 'ITEM_REGISTRY', dataVersion: 'CURRENT' }, 10);
+  const workbook = buildExportWorkbook(project, { preset: 'ITEM_REGISTRY', dataVersion: 'CURRENT' });
+  const rows = XLSX.utils.sheet_to_json(workbook.Sheets.ITEM_REGISTRY, { header: 1 });
+  assert.deepEqual(preview.headers, rows[0]);
+  assert.deepEqual(preview.rows, rows.slice(1, 11));
+  assert.equal(preview.total_rows, 1);
+});
+
+test('custom export preview respects selected columns and text filter', () => {
+  const preview = buildExportPreview(fixture(), {
+    preset: 'CUSTOM',
+    custom: { entity_type: 'ITEM', columns: ['item_code'], filters: { item_code: '001' } }
+  });
+  assert.deepEqual(preview.headers, ['Kode Barang']);
+  assert.equal(preview.total_rows, 1);
+  assert.deepEqual(preview.rows, [['00123']]);
 });
