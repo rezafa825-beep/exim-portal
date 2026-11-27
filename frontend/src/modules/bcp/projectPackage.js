@@ -101,6 +101,7 @@ export async function buildProjectArchive(project) {
     'data/validation.json': jsonBytes(normalized.data.validation),
     'data/relationships.json': jsonBytes(normalized.data.relationships),
     'data/import_decisions.json': jsonBytes(normalized.data.import_decisions || []),
+    'data/export_history.json': jsonBytes(normalized.data.export_history || []),
     'data/audit_log.json': jsonBytes(normalized.data.audit_log),
     'sources/source_registry.json': jsonBytes(normalized.sources.source_registry),
     'settings/project_settings.json': jsonBytes(normalized.settings)
@@ -195,6 +196,7 @@ export async function readProjectArchive(file) {
       validation: readJson(entries, 'data/validation.json', []),
       relationships: readJson(entries, 'data/relationships.json', []),
       import_decisions: readJson(entries, 'data/import_decisions.json', []),
+      export_history: readJson(entries, 'data/export_history.json', []),
       audit_log: readJson(entries, 'data/audit_log.json', [])
     },
     sources: { source_registry: sourceRegistry, files: sourceFiles },
