@@ -73,6 +73,7 @@ export function applyStagingCorrection(stagedFiles, {
   if (!found) throw new Error('Dokumen atau item staging tidak ditemukan.');
 
   const oldValue = field_path.split('.').reduce((value, key) => value?.[key], found.entity);
+  if (!found.entity.staging_original_data) found.entity.staging_original_data = clone(found.entity.current_data || {});
   if (Object.is(oldValue, new_value)) throw new Error('Nilai baru sama dengan nilai sebelumnya.');
   if (['current_data.quantity', 'current_data.net_weight', 'current_data.gross_weight'].includes(field_path)) {
     if (new_value !== null && (!Number.isFinite(Number(new_value)) || Number(new_value) < 0)) {
