@@ -3,6 +3,7 @@ import './bcp.css';
 import { createEmptyProject, refreshProjectCounts, validateProject } from './projectSchema';
 import { deleteRecovery, getRecovery, listRecentProjects, saveRecentProject, saveRecovery } from './projectStorage';
 import { downloadProjectArchive, readProjectArchive } from './projectPackage';
+import { getDocumentView, searchDocuments, searchItems } from './registryEngine';
 
 function formatDate(value) {
   if (!value) return 'Belum pernah disimpan';
@@ -19,6 +20,9 @@ export default function BCP() {
   const [project, setProject] = useState(null);
   const [recent, setRecent] = useState([]);
   const [view, setView] = useState('projects');
+  const [documentQuery, setDocumentQuery] = useState('');
+  const [itemQuery, setItemQuery] = useState('');
+  const [selectedDocumentId, setSelectedDocumentId] = useState(null);
   const [projectName, setProjectName] = useState('BCP PROJECT 2026');
   const [companyName, setCompanyName] = useState('PT Chinli Plastic Materials Indonesia');
   const [showCreate, setShowCreate] = useState(false);
@@ -163,6 +167,9 @@ export default function BCP() {
   };
 
   const validationErrors = project ? validateProject(project) : [];
+  const documentRows = project ? searchDocuments(project, documentQuery) : [];
+  const itemRows = project ? searchItems(project, itemQuery) : [];
+  const selectedDocument = project && selectedDocumentId ? getDocumentView(project, selectedDocumentId) : null;
   const go = next => { setView(next); setError(''); };
 
   return (
@@ -198,6 +205,8 @@ export default function BCP() {
       <nav className="bcp-nav" aria-label="Navigasi BCP">
         <button className={view === 'projects' ? 'active' : ''} onClick={() => go('projects')}>Project Management</button>
         {project && <button className={view === 'dashboard' ? 'active' : ''} onClick={() => go('dashboard')}>Dashboard</button>}
+        {project && <button className={view === 'documents' ? 'active' : ''} onClick={() => { setSelectedDocumentId(null); go('documents'); }}>Document Registry</button>}
+        {project && <button className={view === 'items' ? 'active' : ''} onClick={() => go('items')}>Item Registry</button>}
         {project && <button className={view === 'settings' ? 'active' : ''} onClick={() => go('settings')}>Pengaturan Proyek</button>}
         {project && <button className={view === 'diagnostics' ? 'active' : ''} onClick={() => go('diagnostics')}>System Diagnostics</button>}
       </nav>
@@ -258,6 +267,31 @@ export default function BCP() {
           </div>
           <div className="bcp-section-title"><h3>Informasi Proyek</h3></div>
           <div className="bcp-info-grid"><div><span>Project ID</span><code>{project.manifest.project_id}</code></div><div><span>Format</span><strong>{project.manifest.format} · {project.manifest.format_version}</strong></div><div><span>Schema Version</span><strong>{project.manifest.schema_version}</strong></div><div><span>Pembaruan</span><strong>{formatDate(project.manifest.updated_at)}</strong></div></div>
+        </section>
+      )}
+
+      {view === 'documents' && project && (
+        <section className="bcp-content">
+          <div className="bcp-section-heading"><div><span className="bcp-eyebrow">DOCUMENT REGISTRY</span><h2>Daftar Dokumen</h2><p>Satu record untuk setiap dokumen CEISA. Identitas dokumen dan detail sumber akan ditampilkan setelah proses impor tersedia.</p></div></div>
+          <div className="bcp-registry-toolbar"><input value={documentQuery} onChange={e => setDocumentQuery(e.target.value)} placeholder="Cari Nomor Aju, Nomor Daftar, jenis BC, atau pihak..."/><span>{documentRows.length.toLocaleString('id-ID')} dokumen</span></div>
+          {documentRows.length === 0 ? <div className="bcp-empty"><div>▤</div><strong>Belum ada dokumen</strong><span>Dokumen akan muncul di sini setelah CEISA Extraction dan Import Engine tersedia.</span></div> : (
+            <div className="bcp-registry-table-wrap"><table className="bcp-registry-table"><thead><tr><th>Jenis BC</th><th>Nomor Daftar</th><th>Nomor Aju</th><th>Status</th><th>Amendment</th><th>Detail</th></tr></thead><tbody>
+              {documentRows.map(row => <tr key={row.document_id}><td>{row.document_type}</td><td>{row.registration_number || row.current_data?.registration_number || '—'}</td><td>{row.current_data?.nomor_aju || row.current_data?.aju_number || '—'}</td><td><span className="bcp-table-status">{row.business_status || '—'}</span></td><td>{row.amendment_status || 'ORIGINAL'}</td><td><button className="bcp-text-button" onClick={() => setSelectedDocumentId(row.document_id)}>Lihat</button></td></tr>)}
+            </tbody></table></div>
+          )}
+          {selectedDocument && <div className="bcp-detail-panel"><div className="bcp-section-title"><h3>Detail Dokumen</h3><button className="bcp-text-button" onClick={() => setSelectedDocumentId(null)}>Tutup detail</button></div><div className="bcp-info-grid"><div><span>Document ID</span><code>{selectedDocument.document_id}</code></div><div><span>Nomor Daftar</span><strong>{selectedDocument.registration_number || '—'}</strong></div><div><span>Nomor Aju</span><strong>{selectedDocument.current_data?.nomor_aju || selectedDocument.current_data?.aju_number || '—'}</strong></div><div><span>Jumlah Item</span><strong>{selectedDocument.items.length}</strong></div></div></div>}
+        </section>
+      )}
+
+      {view === 'items' && project && (
+        <section className="bcp-content">
+          <div className="bcp-section-heading"><div><span className="bcp-eyebrow">ITEM REGISTRY</span><h2>Daftar Barang</h2><p>Satu record untuk setiap seri barang. Riwayat transaksi item tidak diperlakukan sebagai saldo stok.</p></div></div>
+          <div className="bcp-registry-toolbar"><input value={itemQuery} onChange={e => setItemQuery(e.target.value)} placeholder="Cari kode barang, uraian, atau spesifikasi..."/><span>{itemRows.length.toLocaleString('id-ID')} item</span></div>
+          {itemRows.length === 0 ? <div className="bcp-empty"><div>▧</div><strong>Belum ada detail barang</strong><span>Detail barang akan muncul setelah dokumen CEISA berhasil diimpor.</span></div> : (
+            <div className="bcp-registry-table-wrap"><table className="bcp-registry-table"><thead><tr><th>Seri</th><th>Kode Barang</th><th>Uraian</th><th>Jumlah</th><th>Satuan</th><th>Document ID</th></tr></thead><tbody>
+              {itemRows.map(row => <tr key={row.item_id}><td>{row.item_sequence ?? '—'}</td><td>{row.item_code || '—'}</td><td>{row.description || '—'}</td><td>{row.quantity ?? '—'}</td><td>{row.unit || '—'}</td><td><button className="bcp-text-button" onClick={() => { setSelectedDocumentId(row.document_id); setView('documents'); }}>{row.document_id.slice(0, 12)}…</button></td></tr>)}
+            </tbody></table></div>
+          )}
         </section>
       )}
 
