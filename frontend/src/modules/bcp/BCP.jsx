@@ -4,7 +4,6 @@ import { createEmptyProject, refreshProjectCounts, validateProject } from './pro
 import { deleteRecovery, getRecovery, listRecentProjects, saveRecentProject, saveRecovery } from './projectStorage';
 import { downloadProjectArchive, readProjectArchive } from './projectPackage';
 import { getDocumentView, searchDocuments, searchItems } from './registryEngine';
-import { parseBC27File } from './ceisaParser';
 import { commitPartialImport, evaluateStagedImport } from './importEngine';
 
 function formatDate(value) {
@@ -173,6 +172,7 @@ export default function BCP() {
     if (!files.length) { setError('Pilih file Excel CEISA (.xlsx, .xls, atau .xlsm).'); return; }
     setStageBusy(true); setError(''); setMessage('Membaca dan mengidentifikasi file CEISA...');
     const parsed = [];
+    const { parseBC27File } = await import('./ceisaParser.js');
     for (const file of files) {
       try {
         parsed.push(await parseBC27File(file, project.manifest.company_name));
