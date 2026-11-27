@@ -197,11 +197,11 @@ export default function BCP() {
     try {
       const result = commitPartialImport(project, stagedFiles, selectedDocumentIds, directionOverrides);
       setProject(result.project);
-      const imported = new Set(result.imported_document_ids);
+      const imported = new Set(result.resolved_document_ids || result.imported_document_ids);
       setStagedFiles(current => current.map(file => file.parse_error ? file : ({ ...file, documents: file.documents.filter(entry => !imported.has(entry.document.document_id)) })).filter(file => file.parse_error || file.documents.length));
       setSelectedDocumentIds(current => current.filter(id => !imported.has(id)));
       setDirectionOverrides(current => Object.fromEntries(Object.entries(current).filter(([id]) => !imported.has(id))));
-      setMessage(`Partial Import selesai: ${result.summary.imported_documents} dokumen berhasil diimpor. ${result.summary.held_documents} record masih ditahan untuk pemeriksaan.`);
+      setMessage(`Partial Import selesai: ${result.summary.imported_documents} dokumen baru diimpor, ${result.summary.linked_existing_documents || 0} sumber ditautkan ke dokumen existing, dan ${result.summary.held_documents} record masih ditahan.`);
     } catch (e) { setError(e.message || 'Import gagal.'); }
     finally { setStageBusy(false); }
   };
