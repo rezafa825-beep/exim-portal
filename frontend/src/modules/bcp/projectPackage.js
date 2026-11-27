@@ -19,10 +19,64 @@ async function sha256Hex(bytes) {
 
 function safeInternalPath(path) {
   return typeof path === 'string' &&
-    path.startsWith('sources/') &&
-    !path.startsWith('/') &&
-    !path.includes('\\') &&
-    !path.split('/').some(part => part === '..' || part === '.');
+    /^sources\/(ceisa|historical|other)\/[^/]+$/.test(path) &&
+    !path.includes('\\\\') &&
+    !path.split('/').some(part => !part || part === '..' || part === '.');
+}
+
+function preflightArchive(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const minEocd = Math.max(0, bytes.length - 65557);
+  let eocd = -1;
+  for (let offset = bytes.length - 22; offset >= minEocd; offset--) {
+    if (view.getUint32(offset, true) === 0x06054b50) {
+      const commentLength = view.getUint16(offset + 20, true);
+      if (offset + 22 + commentLength === bytes.length) { eocd = offset; break; }
+    }
+  }
+  if (eocd < 0) throw new Error('Struktur ZIP tidak lengkap atau rusak.');
+  const entryCount = view.getUint16(eocd + 10, true);
+  const centralSize = view.getUint32(eocd + 12, true);
+  const centralOffset = view.getUint32(eocd + 16, true);
+  if (entryCount > MAX_ARCHIVE_ENTRIES) throw new Error('Arsip berisi terlalu banyak file internal.');
+  if (entryCount === 0xffff || centralSize === 0xffffffff || centralOffset === 0xffffffff) {
+    throw new Error('Arsip ZIP64 belum didukung oleh format BCP saat ini.');
+  }
+  if (centralOffset + centralSize > eocd) throw new Error('Central directory ZIP berada di luar batas file.');
+
+  let cursor = centralOffset;
+  let totalUncompressed = 0;
+  const decoder = new TextDecoder();
+  for (let index = 0; index < entryCount; index++) {
+    if (cursor + 46 > bytes.length || view.getUint32(cursor, true) !== 0x02014b50) {
+      throw new Error('Metadata file internal ZIP tidak valid.');
+    }
+    const flags = view.getUint16(cursor + 8, true);
+    const method = view.getUint16(cursor + 10, true);
+    const compressedSize = view.getUint32(cursor + 20, true);
+    const uncompressedSize = view.getUint32(cursor + 24, true);
+    const nameLength = view.getUint16(cursor + 28, true);
+    const extraLength = view.getUint16(cursor + 30, true);
+    const commentLength = view.getUint16(cursor + 32, true);
+    if (flags & 1) throw new Error('Arsip terenkripsi tidak didukung.');
+    if (![0, 8].includes(method)) throw new Error('Metode kompresi ZIP tidak didukung.');
+    if (compressedSize === 0xffffffff || uncompressedSize === 0xffffffff) {
+      throw new Error('Arsip ZIP64 belum didukung oleh format BCP saat ini.');
+    }
+    const nameStart = cursor + 46;
+    const nameEnd = nameStart + nameLength;
+    if (nameEnd + extraLength + commentLength > bytes.length) throw new Error('Nama file ZIP terpotong.');
+    const name = decoder.decode(bytes.subarray(nameStart, nameEnd));
+    if (name.startsWith('/') || name.includes('\\\\') || name.split('/').some(part => part === '..' || part === '.')) {
+      throw new Error('Arsip berisi jalur file yang tidak aman.');
+    }
+    totalUncompressed += uncompressedSize;
+    if (totalUncompressed > MAX_UNCOMPRESSED_BYTES) {
+      throw new Error('Ukuran hasil ekstraksi proyek melewati batas keamanan 750 MB.');
+    }
+    cursor = nameEnd + extraLength + commentLength;
+  }
+  if (cursor > centralOffset + centralSize) throw new Error('Central directory ZIP tidak konsisten.');
 }
 
 export async function buildProjectArchive(project) {
@@ -94,6 +148,7 @@ export async function readProjectArchive(file) {
   if (file.size > MAX_PROJECT_FILE_BYTES) throw new Error('Ukuran file proyek melebihi batas 250 MB.');
 
   const input = new Uint8Array(await file.arrayBuffer());
+  preflightArchive(input);
   let entries;
   try { entries = unzipSync(input); }
   catch { throw new Error('File .bcp rusak atau bukan arsip proyek yang valid.'); }
