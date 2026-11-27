@@ -20,7 +20,7 @@ function latestDecision(project, documentId) {
 
 export function evaluateStagedImport(project, stagedFiles) {
   const seenFileHashes = new Set();
-  const seenAju = new Set();
+  const seenAju = new Map();
   const rows = [];
 
   for (const staged of stagedFiles) {
@@ -43,7 +43,7 @@ export function evaluateStagedImport(project, stagedFiles) {
       const duplicateInBatch = aju && seenAju.has(aju);
       const duplicateMatch = duplicateExisting || (duplicateInBatch ? { document_id: seenAju.get(aju) } : null);
       const decision = latestDecision(project, document.document_id);
-      if (aju) seenAju.add(aju);
+      if (aju && !seenAju.has(aju)) seenAju.set(aju, document);
 
       let status = 'READY';
       let reason = 'Dokumen unik dan siap diimpor.';
@@ -76,7 +76,7 @@ export function evaluateStagedImport(project, stagedFiles) {
         registration_number: document.registration_number,
         document_type: document.document_type,
         item_count: entry.items.length,
-        existing_document_id: duplicateExisting?.document_id || (duplicateInBatch ? seenAju.get(aju) : null),
+        existing_document_id: duplicateExisting?.document_id || (duplicateInBatch ? seenAju.get(aju)?.document_id || null : null),
         decision: decision?.decision || null,
         status,
         reason
