@@ -96,9 +96,18 @@ The current test suite covers:
 - Staging corrections are committed to correction history and Audit Trail only when the document is imported.
 - Import decisions are stored in `data/import_decisions.json` inside the `.bcp` project.
 
+### M5 — Monthly Period Foundation
+- Create monthly periods with unique YYYY-MM keys.
+- Lifecycle OPEN → REVIEW → CLOSED, with reopening from CLOSED to OPEN.
+- Closing and reopening require a reason and write Audit Trail events.
+- Documents can be assigned or moved between periods; moving requires a reason.
+- CLOSED periods cannot receive new assignments or have documents moved out until reopened.
+- Period summary reports document count, item count, business statuses, amendments, and document types.
+- Reporting Date is not inferred automatically; per-document-type date mapping remains pending explicit CEISA mapping approval.
+
 ## Remaining work
 
-- M4 completion: broader browser acceptance tests, more validation rules, and review of duplicate edge cases.
+- M4/M5 completion: real-file browser acceptance tests, broader validation rules, period assignment review, and duplicate edge-case coverage.
 - M5: Monthly Period management and historical workbook migration.
 - M6: Reports and Export Center.
 - M7: Additional BC document types.
