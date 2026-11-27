@@ -122,6 +122,7 @@ test('Partial Import commits valid unique documents and includes original source
 
 test('BCP project package round-trips original source bytes with checksum validation', async () => {
   const project = createEmptyProject({ projectName: 'PACKAGE TEST', companyName: COMPANY });
+  project.data.import_decisions.push({ decision_id: 'DEC-1', candidate_id: 'DUP-DOCUMENT-DOC-1', decision: 'KEEP_BOTH', reason: 'Retain both.' });
   const sourcePath = 'sources/ceisa/SRC-test_test.xlsx';
   project.sources.source_registry.push({
     source_id: 'SRC-test', source_type: 'CEISA', original_file_name: 'test.xlsx',
@@ -132,6 +133,7 @@ test('BCP project package round-trips original source bytes with checksum valida
   const archive = await buildProjectArchive(project);
   const restored = await readProjectArchive(new File([archive.bytes], 'package-test.bcp'));
   assert.equal(restored.manifest.project_id, project.manifest.project_id);
+  assert.equal(restored.data.import_decisions[0].decision, 'KEEP_BOTH');
   assert.deepEqual([...restored.sources.files[sourcePath]], [1, 2, 3]);
 });
 
@@ -207,6 +209,8 @@ test('Duplicate Review USE_EXISTING links source without creating another transa
   const decided = recordDuplicateDecision(first.project, candidate, 'USE_EXISTING', 'Dokumen lama merupakan transaksi yang sama.');
   const result = commitPartialImport(decided, [staged], [staged.documents[0].document.document_id]);
   assert.equal(result.summary.imported_documents, 0);
+  assert.equal(result.summary.linked_existing_documents, 1);
+  assert.equal(result.resolved_document_ids.length, 1);
   assert.equal(result.project.data.documents.length, 1);
   assert.ok(result.project.data.documents[0].source_refs.includes(staged.source.source_id));
   assert.equal(result.project.sources.source_registry.length, 2);
