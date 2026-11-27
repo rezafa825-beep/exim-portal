@@ -250,7 +250,7 @@ export default function BCP() {
       <nav className="bcp-nav" aria-label="Navigasi BCP">
         <button className={view === 'projects' ? 'active' : ''} onClick={() => go('projects')}>Project Management</button>
         {project && <button className={view === 'dashboard' ? 'active' : ''} onClick={() => go('dashboard')}>Dashboard</button>}
-        {project && <button className={view === 'upload' ? 'active' : ''} onClick={() => go('upload')}>Upload CEISA</button>
+        {project && <button className={view === 'upload' ? 'active' : ''} onClick={() => go('upload')}>Upload CEISA</button>}
         {project && <button className={view === 'documents' ? 'active' : ''} onClick={() => { setSelectedDocumentId(null); go('documents'); }}>Document Registry</button>}
         {project && <button className={view === 'items' ? 'active' : ''} onClick={() => go('items')}>Item Registry</button>}
         {project && <button className={view === 'settings' ? 'active' : ''} onClick={() => go('settings')}>Pengaturan Proyek</button>}
