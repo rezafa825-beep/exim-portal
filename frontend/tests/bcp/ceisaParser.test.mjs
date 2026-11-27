@@ -6,6 +6,7 @@ import { unzipSync, zipSync, strToU8 } from 'fflate';
 import { parseBC27File } from '../../src/modules/bcp/ceisaParser.js';
 import { createEmptyProject } from '../../src/modules/bcp/projectSchema.js';
 import { commitPartialImport, evaluateStagedImport } from '../../src/modules/bcp/importEngine.js';
+import { buildDuplicateReview, recordDuplicateDecision } from '../../src/modules/bcp/duplicateReviewEngine.js';
 import { getDocumentView, validateRegistryIntegrity } from '../../src/modules/bcp/registryEngine.js';
 import { buildProjectArchive, readProjectArchive } from '../../src/modules/bcp/projectPackage.js';
 
@@ -176,4 +177,36 @@ test('project package rejects source tampering and unsafe ZIP paths', async () =
     () => readProjectArchive(new File([unsafe], 'unsafe.bcp')),
     /jalur file yang tidak aman/
   );
+});
+
+test('Duplicate Review USE_NEW imports a reviewed duplicate and records relationship', async () => {
+  const original = await parseBC27File(asFile(makeWorkbook({ documentCount: 1, direction: 'OUT' })), COMPANY);
+  const project = createEmptyProject({ projectName: 'USE NEW TEST', companyName: COMPANY });
+  const first = commitPartialImport(project, [original], [original.documents[0].document.document_id]);
+  const changedWorkbook = makeWorkbook({ documentCount: 1, direction: 'OUT' });
+  changedWorkbook.Sheets.BARANG['H2'].v = 125;
+  const staged = await parseBC27File(asFile(changedWorkbook, 'revised-source.xlsx'), COMPANY);
+  const candidate = buildDuplicateReview(first.project, [staged]).find(row => row.candidate_type === 'DOCUMENT');
+  assert.ok(candidate);
+  const decided = recordDuplicateDecision(first.project, candidate, 'USE_NEW', 'File CEISA baru dipilih setelah pemeriksaan.');
+  const result = commitPartialImport(decided, [staged], [staged.documents[0].document.document_id]);
+  assert.equal(result.summary.imported_documents, 1);
+  assert.equal(result.project.data.documents.length, 2);
+  assert.equal(result.project.data.relationships.at(-1).relationship_type, 'SUPERSEDED_BY');
+});
+
+test('Duplicate Review USE_EXISTING links source without creating another transaction', async () => {
+  const original = await parseBC27File(asFile(makeWorkbook({ documentCount: 1, direction: 'OUT' })), COMPANY);
+  const project = createEmptyProject({ projectName: 'USE EXISTING TEST', companyName: COMPANY });
+  const first = commitPartialImport(project, [original], [original.documents[0].document.document_id]);
+  const changedWorkbook = makeWorkbook({ documentCount: 1, direction: 'OUT' });
+  changedWorkbook.Sheets.BARANG['H2'].v = 125;
+  const staged = await parseBC27File(asFile(changedWorkbook, 'alternate-source.xlsx'), COMPANY);
+  const candidate = buildDuplicateReview(first.project, [staged]).find(row => row.candidate_type === 'DOCUMENT');
+  const decided = recordDuplicateDecision(first.project, candidate, 'USE_EXISTING', 'Dokumen lama merupakan transaksi yang sama.');
+  const result = commitPartialImport(decided, [staged], [staged.documents[0].document.document_id]);
+  assert.equal(result.summary.imported_documents, 0);
+  assert.equal(result.project.data.documents.length, 1);
+  assert.ok(result.project.data.documents[0].source_refs.includes(staged.source.source_id));
+  assert.equal(result.project.sources.source_registry.length, 2);
 });
