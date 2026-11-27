@@ -106,6 +106,8 @@ export function commitPartialImport(project, stagedFiles, selectedDocumentIds, d
   const evaluation = evaluateStagedImport(project, stagedFiles);
   let next = structuredClone(project);
   const importedIds = [];
+  const resolvedIds = [];
+  const linkedExistingIds = [];
   const held = [];
   const importedBySource = new Map();
 
@@ -134,9 +136,10 @@ export function commitPartialImport(project, stagedFiles, selectedDocumentIds, d
         }
         if (!importedBySource.has(staged.source.sha256)) importedBySource.set(staged.source.sha256, []);
         importedBySource.get(staged.source.sha256).push(existingDocument.document_id);
+        resolvedIds.push(entry.document.document_id);
+        linkedExistingIds.push(entry.document.document_id);
         const sourceId = staged.source.source_id;
         existingDocument.source_refs = [...new Set([...(existingDocument.source_refs || []), sourceId])];
-        held.push({ document_id: entry.document.document_id, existing_document_id: existingDocument.document_id, aju_number: entry.document.aju_number, status: 'USE_EXISTING', reason: 'Sumber baru ditautkan ke dokumen existing; tidak dibuat transaksi baru.' });
         continue;
       }
       if (!check || !['READY', 'NEEDS_REVIEW', 'READY_WITH_DUPLICATE_DECISION'].includes(check.status)) {
@@ -209,6 +212,7 @@ export function commitPartialImport(project, stagedFiles, selectedDocumentIds, d
           });
         }
         importedIds.push(document.document_id);
+        resolvedIds.push(document.document_id);
         if (!importedBySource.has(staged.source.sha256)) importedBySource.set(staged.source.sha256, []);
         importedBySource.get(staged.source.sha256).push(document.document_id);
       } catch (error) {
@@ -239,10 +243,13 @@ export function commitPartialImport(project, stagedFiles, selectedDocumentIds, d
   return {
     project: refreshProjectCounts(next),
     imported_document_ids: importedIds,
+    resolved_document_ids: resolvedIds,
+    linked_existing_document_ids: linkedExistingIds,
     held,
     evaluation,
     summary: {
       imported_documents: importedIds.length,
+      linked_existing_documents: linkedExistingIds.length,
       held_documents: held.length,
       total_staged_documents: stagedFiles.reduce((sum, file) => sum + (file.documents?.length || 0), 0)
     }
