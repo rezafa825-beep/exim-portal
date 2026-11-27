@@ -19,18 +19,20 @@ export function createEmptyProject({ projectName, companyName = '' }) {
       updated_at: now,
       last_saved_at: null,
       project_status: 'OPEN',
-      counts: { documents: 0, items: 0, source_files: 0 }
+      counts: { documents: 0, items: 0, raw_materials: 0, source_files: 0 }
     },
     data: {
       documents: [],
       items: [],
+      raw_materials: [],
+      raw_material_tariffs: [],
       periods: [],
       corrections: [],
       validation: [],
       relationships: [],
       audit_log: []
     },
-    sources: { source_registry: [] },
+    sources: { source_registry: [], files: {} },
     settings: {
       operator: { operator_id: 'LOCAL-USER-001', display_name: 'Default Operator' },
       project: { reminder_minutes: 5, reminder_change_count: 10 },
@@ -48,10 +50,11 @@ export function validateProject(project) {
   if (!project.data || !Array.isArray(project.data.documents) || !Array.isArray(project.data.items)) {
     errors.push('Data documents/items tidak valid.');
   }
-  for (const key of ['periods', 'corrections', 'validation', 'relationships', 'audit_log']) {
+  for (const key of ['raw_materials', 'raw_material_tariffs', 'periods', 'corrections', 'validation', 'relationships', 'audit_log']) {
     if (!Array.isArray(project.data?.[key])) errors.push(`Data ${key} harus berupa array.`);
   }
   if (!Array.isArray(project.sources?.source_registry)) errors.push('Source registry tidak valid.');
+  if (!project.sources?.files || typeof project.sources.files !== 'object') errors.push('Source files tidak valid.');
   if (!project.settings || typeof project.settings !== 'object') errors.push('Pengaturan proyek tidak valid.');
   return errors;
 }
@@ -61,6 +64,7 @@ export function refreshProjectCounts(project) {
   next.manifest.counts = {
     documents: next.data.documents.length,
     items: next.data.items.length,
+    raw_materials: next.data.raw_materials.length,
     source_files: next.sources.source_registry.length
   };
   next.manifest.updated_at = new Date().toISOString();
