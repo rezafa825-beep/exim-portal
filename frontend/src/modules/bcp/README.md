@@ -10,7 +10,8 @@ BCP is a browser-local module for Buku Catatan Pemasukan dan Pengeluaran. It is 
 - Dedicated IndexedDB database: `reza-bcp-local`.
 - Auto-Recovery and Save Reminder.
 - SHA-256 checksums for package payload files.
-- ZIP preflight checks for entry count, uncompressed size, encryption, ZIP64, and unsafe paths.
+- ZIP preflight checks for entry count, uncompressed size, encryption, ZIP64, duplicate internal names, local headers, central directory consistency, and unsafe paths.
+- Archive loading requires every core package entry and a valid SHA-256 checksum for every non-manifest entry.
 
 ### M2 — Registry Foundation
 - Common Document Registry and Item Registry models.
@@ -18,6 +19,7 @@ BCP is a browser-local module for Buku Catatan Pemasukan dan Pengeluaran. It is 
 - Original/current value separation.
 - Correction history, business status, document relationships, search, and registry integrity checks.
 - Document detail joins items, raw materials, and tariff children.
+- Registry integrity checks enforce unique IDs and valid document → item → raw material → tariff parent-child references, period assignments, and source references.
 
 ### M3 — BC 2.7 Extraction
 - Unified Upload for mixed single-document and multi-document Excel workbooks.
@@ -76,7 +78,7 @@ npm run build
 npm run test:bcp
 ```
 
-The current test suite covers:
+The current test suite contains 36 passing tests in CI and covers:
 - BC 2.7 IN single-document parsing.
 - BC 2.7 OUT single-document parsing.
 - Multi-document workbook splitting.
@@ -85,6 +87,7 @@ The current test suite covers:
 - Duplicate detection.
 - Project archive round-trip and checksum validation.
 - Unsafe ZIP path rejection.
+- Missing required archive entry and registry orphan/reference rejection.
 
 ### M4 — Duplicate Review & Validation
 - Duplicate Review Center with separate file-hash and document-identity candidates.
