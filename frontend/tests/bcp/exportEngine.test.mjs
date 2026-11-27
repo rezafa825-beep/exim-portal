@@ -16,7 +16,7 @@ function fixture() {
     item_id: 'ITEM-1', document_id: 'DOC-1', item_sequence: '1', item_code: '00123',
     description: '=HYPERLINK("x")', quantity: 10, unit: 'PRS',
     original_data: { item_code: '00123', description: 'Original' },
-    current_data: { item_code: '00123', description: 'Current' }
+    current_data: { item_code: '00123', description: '=HYPERLINK("x")' }
   });
   return project;
 }
