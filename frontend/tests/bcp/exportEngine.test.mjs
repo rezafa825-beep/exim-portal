@@ -63,6 +63,9 @@ test('custom export profiles are stored with validated field selections', () => 
   const saved = saveExportProfile(fixture(), { name: 'Item Basic', entity_type: 'ITEM', columns: ['item_code','quantity','not-a-field'] });
   assert.equal(saved.settings.export.profiles.length, 1);
   assert.deepEqual(saved.settings.export.profiles[0].columns, ['item_code','quantity']);
+  const advanced = saveExportProfile(fixture(), { name: 'Advanced', entity_type: 'ITEM', columns: ['item_code','quantity'], filters: { item_code: '001' }, group_by: 'item_code', sort_by: 'quantity', sort_direction: 'DESC', label_overrides: { item_code: 'Internal Code' } });
+  assert.equal(advanced.settings.export.profiles[0].filters.item_code, '001');
+  assert.equal(advanced.settings.export.profiles[0].group_by, 'item_code');
   assert.throws(() => saveExportProfile(fixture(), { name: 'Empty', entity_type: 'ITEM', columns: [] }), /minimal satu kolom/);
 });
 
@@ -73,4 +76,23 @@ test('formula guard prefixes values beginning with plus, minus, and at signs', (
   const workbook = buildExportWorkbook(project, { preset: 'ITEM_REGISTRY' });
   const rows = XLSX.utils.sheet_to_json(workbook.Sheets.ITEM_REGISTRY, { header: 1 });
   assert.ok(String(rows[1][3]).startsWith("'-CMD"));
+});
+
+test('custom export applies filters, grouping, sorting, and label overrides', () => {
+  const workbook = buildExportWorkbook(fixture(), {
+    preset: 'CUSTOM',
+    custom: {
+      entity_type: 'ITEM',
+      columns: ['item_code','description'],
+      filters: { item_code: '001' },
+      group_by: 'item_code',
+      sort_by: 'item_code',
+      sort_direction: 'DESC',
+      label_overrides: { item_code: 'Internal Code' }
+    }
+  });
+  const rows = XLSX.utils.sheet_to_json(workbook.Sheets.CUSTOM_ITEMS, { header: 1 });
+  assert.deepEqual(rows[0], ['Group: Internal Code','Internal Code','Uraian Barang']);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[1][1], '00123');
 });
