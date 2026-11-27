@@ -77,7 +77,7 @@ function normalizeItem(input, documentId, sourceId) {
   };
 }
 
-export function appendImportedDocument(project, documentInput, itemInputs = [], sourceId = null) {
+export function appendImportedDocument(project, documentInput, itemInputs = [], sourceId = null, { allowDuplicateIdentity = false } = {}) {
   if (!documentInput || typeof documentInput !== 'object') throw new Error('Data dokumen tidak valid.');
   if (!Array.isArray(itemInputs)) throw new Error('Daftar barang harus berupa array.');
 
@@ -86,7 +86,7 @@ export function appendImportedDocument(project, documentInput, itemInputs = [], 
   if (next.data.documents.some(row => row.document_id === document.document_id)) {
     throw new Error('Document ID sudah digunakan.');
   }
-  if (next.data.documents.some(row =>
+  if (!allowDuplicateIdentity && next.data.documents.some(row =>
     (document.aju_number && row.aju_number === document.aju_number) ||
     (row.document_type === document.document_type && document.registration_number && row.registration_number === document.registration_number)
   )) {
@@ -265,9 +265,9 @@ export function getItemTransactionHistory(project, itemCode) {
 
 
 export function appendImportedDocumentBundle(project, {
-  document, items = [], raw_materials = [], raw_material_tariffs = [], source_id = null
+  document, items = [], raw_materials = [], raw_material_tariffs = [], source_id = null, allowDuplicateIdentity = false
 }) {
-  let next = appendImportedDocument(project, document, items, source_id);
+  let next = appendImportedDocument(project, document, items, source_id, { allowDuplicateIdentity });
   const documentId = next.data.documents.at(-1).document_id;
   const itemBySequence = new Map(
     next.data.items.filter(item => item.document_id === documentId)
