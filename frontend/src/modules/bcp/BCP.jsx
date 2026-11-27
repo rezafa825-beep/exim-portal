@@ -36,6 +36,12 @@ export default function BCP() {
   const [exportEntityType, setExportEntityType] = useState('DOCUMENT');
   const [exportColumns, setExportColumns] = useState(['nomor_aju','nomor_daftar','document_type']);
   const [exportProfileName, setExportProfileName] = useState('');
+  const [exportFilterField, setExportFilterField] = useState('');
+  const [exportFilterValue, setExportFilterValue] = useState('');
+  const [exportGroupBy, setExportGroupBy] = useState('');
+  const [exportSortBy, setExportSortBy] = useState('');
+  const [exportSortDirection, setExportSortDirection] = useState('ASC');
+  const [exportLabelOverrides, setExportLabelOverrides] = useState('');
   const [directionOverrides, setDirectionOverrides] = useState({});
   const [stageBusy, setStageBusy] = useState(false);
   const [uploadDrag, setUploadDrag] = useState(false);
@@ -252,7 +258,12 @@ export default function BCP() {
   const exportNow = () => {
     if (!project) return;
     try {
-      const custom = exportPreset === 'CUSTOM' ? { entity_type: exportEntityType, columns: exportColumns } : null;
+      const label_overrides = Object.fromEntries(exportLabelOverrides.split(';').map(part => part.split('=').map(value => value.trim())).filter(pair => pair.length === 2 && pair[0] && pair[1]));
+      const custom = exportPreset === 'CUSTOM' ? {
+        entity_type: exportEntityType, columns: exportColumns,
+        filters: exportFilterField && exportFilterValue ? { [exportFilterField]: exportFilterValue } : {},
+        group_by: exportGroupBy, sort_by: exportSortBy, sort_direction: exportSortDirection, label_overrides
+      } : null;
       const workbook = buildExportWorkbook(project, { preset: exportPreset, dataVersion: exportVersion, custom });
       const fileName = `BCP_${exportPreset}_${new Date().toISOString().slice(0,10)}.xlsx`;
       const bytes = downloadExportWorkbook(workbook, fileName);
@@ -267,7 +278,10 @@ export default function BCP() {
   const saveCurrentExportProfile = () => {
     try {
       setProject(current => saveExportProfile(current, {
-        name: exportProfileName, entity_type: exportEntityType, columns: exportColumns
+        name: exportProfileName, entity_type: exportEntityType, columns: exportColumns,
+        filters: exportFilterField && exportFilterValue ? { [exportFilterField]: exportFilterValue } : {},
+        group_by: exportGroupBy, sort_by: exportSortBy, sort_direction: exportSortDirection,
+        label_overrides: Object.fromEntries(exportLabelOverrides.split(';').map(part => part.split('=').map(value => value.trim())).filter(pair => pair.length === 2 && pair[0] && pair[1]))
       }));
       setMessage('Profil Custom Export berhasil disimpan dalam proyek.');
       setExportProfileName('');
@@ -279,6 +293,11 @@ export default function BCP() {
     if (!profile) return;
     setExportEntityType(profile.entity_type);
     setExportColumns(profile.columns);
+    const filterEntry = Object.entries(profile.filters || {})[0] || ['', ''];
+    setExportFilterField(filterEntry[0]); setExportFilterValue(filterEntry[1]);
+    setExportGroupBy(profile.group_by || ''); setExportSortBy(profile.sort_by || '');
+    setExportSortDirection(profile.sort_direction || 'ASC');
+    setExportLabelOverrides(Object.entries(profile.label_overrides || {}).map(([key,value]) => `${key}=${value}`).join('; '));
     setExportPreset('CUSTOM');
   };
 
@@ -517,11 +536,19 @@ export default function BCP() {
                   <label key={field.key}><input type="checkbox" checked={exportColumns.includes(field.key)} onChange={e => setExportColumns(current => e.target.checked ? [...current, field.key] : current.filter(key => key !== field.key))}/><span>{field.label}</span></label>
                 ))}
               </div>
+              <div className="bcp-export-advanced">
+                <label>Filter field<select value={exportFilterField} onChange={e => setExportFilterField(e.target.value)}><option value="">Tanpa filter</option>{getExportFields(exportEntityType).map(field => <option key={field.key} value={field.key}>{field.label}</option>)}</select></label>
+                <label>Nilai filter<input value={exportFilterValue} onChange={e => setExportFilterValue(e.target.value)} placeholder="Cari nilai yang mengandung teks ini"/></label>
+                <label>Group by<select value={exportGroupBy} onChange={e => setExportGroupBy(e.target.value)}><option value="">Tanpa grouping</option>{getExportFields(exportEntityType).filter(field => exportColumns.includes(field.key)).map(field => <option key={field.key} value={field.key}>{field.label}</option>)}</select></label>
+                <label>Sort by<select value={exportSortBy} onChange={e => setExportSortBy(e.target.value)}><option value="">Urutan default</option>{getExportFields(exportEntityType).filter(field => exportColumns.includes(field.key)).map(field => <option key={field.key} value={field.key}>{field.label}</option>)}</select></label>
+                <label>Arah sorting<select value={exportSortDirection} onChange={e => setExportSortDirection(e.target.value)}><option value="ASC">Ascending</option><option value="DESC">Descending</option></select></label>
+                <label className="bcp-export-labels">Label kolom khusus<input value={exportLabelOverrides} onChange={e => setExportLabelOverrides(e.target.value)} placeholder="item_code=Kode Internal; quantity=Qty"/></label>
+              </div>
               <div className="bcp-registry-toolbar">
                 <input value={exportProfileName} onChange={e => setExportProfileName(e.target.value)} placeholder="Nama profil export"/>
                 <button className="bcp-button bcp-button-secondary" onClick={saveCurrentExportProfile}>Simpan Profil</button>
               </div>
-              <p className="bcp-muted">Profil menyimpan pilihan jenis registry dan kolom. Filter lanjutan, grouping, sorting, dan label kolom khusus akan dilengkapi pada iterasi Export Center berikutnya.</p>
+              <p className="bcp-muted">Profil menyimpan kolom, filter, grouping, sorting, dan label kolom. Filter menggunakan pencarian teks yang mengandung nilai.</p>
             </div>
           )}
           <div className="bcp-detail-panel">
