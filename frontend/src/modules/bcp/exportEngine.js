@@ -43,7 +43,7 @@ function safeCell(value, type = 'text') {
     return Number.isNaN(date.getTime()) ? String(value) : date;
   }
   const string = String(value);
-  return /^[\\s]*[=+\\-@]/.test(string) ? `'${string}` : string;
+  return /^[\s]*[=+\-@]/.test(string) ? `'${string}` : string;
 }
 function rowsFromFields(records, fields, dataVersion = 'CURRENT') {
   const header = fields.map(field => field.label);
