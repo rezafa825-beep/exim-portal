@@ -185,6 +185,29 @@ export function commitPartialImport(project, stagedFiles, selectedDocumentIds, d
             created_at: new Date().toISOString(), operator_id: next.settings?.operator?.operator_id || 'LOCAL-USER-001'
           });
         }
+        for (const correction of entry.staging_corrections || []) {
+          next.data.corrections.push({
+            correction_id: correction.correction_id,
+            entity_type: correction.entity_type,
+            entity_id: correction.entity_id,
+            document_id: document.document_id,
+            field_path: correction.field_path,
+            old_value: structuredClone(correction.old_value),
+            new_value: structuredClone(correction.new_value),
+            reason: correction.reason,
+            operator_id: correction.operator_id,
+            changed_at: correction.changed_at
+          });
+          const parentDocument = next.data.documents.find(row => row.document_id === document.document_id);
+          if (parentDocument) parentDocument.amendment_status = 'AMENDED';
+          next.data.audit_log.push({
+            event_id: `AUDIT-${crypto.randomUUID()}`,
+            event_type: 'STAGING_CORRECTION_COMMITTED',
+            description: `Koreksi staging ${correction.entity_type} ${correction.entity_id}: ${correction.field_path}. Alasan: ${correction.reason}`,
+            created_at: correction.changed_at,
+            operator_id: correction.operator_id
+          });
+        }
         importedIds.push(document.document_id);
         if (!importedBySource.has(staged.source.sha256)) importedBySource.set(staged.source.sha256, []);
         importedBySource.get(staged.source.sha256).push(document.document_id);
