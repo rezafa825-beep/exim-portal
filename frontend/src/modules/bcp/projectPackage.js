@@ -1,15 +1,15 @@
 import { strToU8, strFromU8, zipSync, unzipSync } from 'fflate';
 import { BCP_FORMAT, BCP_FORMAT_VERSION, validateProject, refreshProjectCounts } from './projectSchema';
 
-const MAX_PROJECT_FILE_BYTES = 100 * 1024 * 1024;
-const MAX_UNCOMPRESSED_BYTES = 500 * 1024 * 1024;
+const MAX_PROJECT_FILE_BYTES = 250 * 1024 * 1024;
+const MAX_UNCOMPRESSED_BYTES = 750 * 1024 * 1024;
 const MAX_ARCHIVE_ENTRIES = 10000;
 
 function jsonBytes(value) {
   return strToU8(JSON.stringify(value, null, 2));
 }
 
-export function buildProjectArchive(project) {
+async function sha256Hex(bytes) {\n  if (!globalThis.crypto?.subtle) throw new Error('Web Crypto API tidak tersedia. Gunakan browser modern melalui HTTPS atau localhost.');\n  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);\n  return Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, '0')).join('');\n}\n\nexport async function buildProjectArchive(project) {
   const errors = validateProject(project);
   if (errors.length) throw new Error(errors.join(' '));
   const normalized = refreshProjectCounts(project);
