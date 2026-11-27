@@ -1,5 +1,5 @@
 import { strToU8, strFromU8, zipSync, unzipSync } from 'fflate';
-import { BCP_FORMAT, BCP_FORMAT_VERSION, validateProject, refreshProjectCounts } from './projectSchema';
+import { BCP_FORMAT, BCP_FORMAT_VERSION, validateProject, refreshProjectCounts } from './projectSchema.js';
 
 const MAX_PROJECT_FILE_BYTES = 250 * 1024 * 1024;
 const MAX_UNCOMPRESSED_BYTES = 750 * 1024 * 1024;
