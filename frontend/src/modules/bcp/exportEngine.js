@@ -129,9 +129,9 @@ export function buildExportWorkbook(project, {
         return String(actual ?? '').toLowerCase().includes(needle);
       });
     }
-    if (config.sort_by) {
-      const key = config.sort_by;
-      const direction = config.sort_direction === 'DESC' ? -1 : 1;
+    if (config.sort_by || config.group_by) {
+      const key = config.sort_by || config.group_by;
+      const direction = config.sort_by && config.sort_direction === 'DESC' ? -1 : 1;
       selectedRecords.sort((a,b) => {
         const av = getPath(a.current_data || {}, key) ?? getPath(a, key) ?? '';
         const bv = getPath(b.current_data || {}, key) ?? getPath(b, key) ?? '';
