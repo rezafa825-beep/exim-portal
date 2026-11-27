@@ -7,6 +7,7 @@ import { getDocumentView, searchDocuments, searchItems } from './registryEngine'
 import { commitPartialImport, evaluateStagedImport } from './importEngine';
 import { buildDuplicateReview, recordDuplicateDecision } from './duplicateReviewEngine';
 import { applyStagingCorrection, getStagingValidationSummary } from './stagingEngine';
+import { createMonthlyPeriod, changeMonthlyPeriodStatus, assignDocumentToPeriod, getMonthlyPeriodSummary } from './periodEngine';
 
 function formatDate(value) {
   if (!value) return 'Belum pernah disimpan';
@@ -206,6 +207,39 @@ export default function BCP() {
     finally { setStageBusy(false); }
   };
 
+  const createPeriodFromPrompt = () => {
+    const year = window.prompt('Tahun periode (contoh: 2026):', String(new Date().getFullYear()));
+    if (year === null) return;
+    const month = window.prompt('Bulan periode (1–12):', String(new Date().getMonth() + 1));
+    if (month === null) return;
+    try {
+      setProject(current => createMonthlyPeriod(current, { year, month }));
+      setMessage('Periode bulanan berhasil dibuat.');
+      setError('');
+    } catch (e) { setError(e.message || 'Gagal membuat periode.'); }
+  };
+  const updatePeriodStatus = (period, status) => {
+    const reason = (status === 'CLOSED' || period.status === 'CLOSED')
+      ? window.prompt('Alasan penutupan atau pembukaan kembali periode:')
+      : window.prompt('Catatan perubahan status (opsional):') || '';
+    if (reason === null) return;
+    try {
+      setProject(current => changeMonthlyPeriodStatus(current, period.period_id, status, reason));
+      setMessage(`Status periode ${period.period_key} diperbarui menjadi ${status}.`);
+      setError('');
+    } catch (e) { setError(e.message || 'Gagal mengubah status periode.'); }
+  };
+  const changeDocumentPeriod = (documentId, periodId) => {
+    const document = project?.data.documents.find(row => row.document_id === documentId);
+    const reason = document?.period_id ? window.prompt('Alasan pemindahan dokumen antarperiode:') : '';
+    if (reason === null) return;
+    try {
+      setProject(current => assignDocumentToPeriod(current, documentId, periodId, reason));
+      setMessage('Periode dokumen berhasil diperbarui.');
+      setError('');
+    } catch (e) { setError(e.message || 'Gagal menetapkan periode dokumen.'); }
+  };
+
   const updateOperator = value => {
     setProject(current => refreshProjectCounts({
       ...current,
@@ -289,6 +323,7 @@ export default function BCP() {
         {project && <button className={view === 'items' ? 'active' : ''} onClick={() => go('items')}>Item Registry</button>}
         {project && <button className={view === 'duplicates' ? 'active' : ''} onClick={() => go('duplicates')}>Duplicate Review {duplicateCandidates.length ? `(${duplicateCandidates.length})` : ''}</button>}
         {project && <button className={view === 'validation' ? 'active' : ''} onClick={() => go('validation')}>Validation Center</button>}
+        {project && <button className={view === 'periods' ? 'active' : ''} onClick={() => go('periods')}>Monthly Period</button>}
         {project && <button className={view === 'settings' ? 'active' : ''} onClick={() => go('settings')}>Pengaturan Proyek</button>}
         {project && <button className={view === 'diagnostics' ? 'active' : ''} onClick={() => go('diagnostics')}>System Diagnostics</button>}
       </nav>
@@ -397,6 +432,48 @@ export default function BCP() {
             </>
           )}
           <div className="bcp-security-note"><strong>Aturan impor</strong><span>Data sumber CEISA tidak diubah. Dokumen valid dan unik dapat diimpor terpisah; error, duplikasi, dan klasifikasi yang belum jelas tetap ditahan. File sumber yang sudah dipakai akan disertakan dalam proyek .bcp.</span></div>
+        </section>
+      )}
+
+      {view === 'periods' && project && (
+        <section className="bcp-content">
+          <div className="bcp-section-heading">
+            <div><span className="bcp-eyebrow">MONTHLY PERIOD MANAGEMENT</span><h2>Manajemen Periode Bulanan</h2><p>Kelola periode OPEN, REVIEW, dan CLOSED. Penetapan periode dokumen dilakukan secara eksplisit; BCP belum menebak Reporting Date otomatis.</p></div>
+            <button className="bcp-button bcp-button-primary" onClick={createPeriodFromPrompt}>＋ Buat Periode</button>
+          </div>
+          {project.data.periods.length === 0 ? (
+            <div className="bcp-empty"><div>▦</div><strong>Belum ada periode</strong><span>Buat periode bulanan untuk mulai mengelompokkan dokumen BCP.</span></div>
+          ) : [...project.data.periods].sort((a,b) => b.period_key.localeCompare(a.period_key)).map(period => {
+            const summary = getMonthlyPeriodSummary(project, period.period_id);
+            return (
+              <article className="bcp-stage-file" key={period.period_id}>
+                <div className="bcp-stage-file-head">
+                  <div><strong>{period.label}</strong><small>{period.period_key} · Dibuat {formatDate(period.created_at)}</small></div>
+                  <span className={'bcp-stage-badge ' + (period.status === 'OPEN' ? 'ready' : 'warning')}>{period.status}</span>
+                </div>
+                <div className="bcp-import-summary">
+                  <div><strong>{summary.document_count}</strong><span>Dokumen</span></div>
+                  <div><strong>{summary.item_count}</strong><span>Detail barang</span></div>
+                  <div><strong>{summary.amended_count}</strong><span>Dokumen dikoreksi</span></div>
+                  <div><strong>{summary.void_count + summary.cancelled_count}</strong><span>VOID / CANCELLED</span></div>
+                </div>
+                <div className="bcp-info-grid">
+                  <div><span>Rincian jenis BC</span><strong>{Object.entries(summary.documents_by_type).map(([type,count]) => `${type}: ${count}`).join(' · ') || 'Belum ada dokumen'}</strong></div>
+                  <div><span>Tanggal status terakhir</span><strong>{formatDate(period.updated_at)}</strong></div>
+                </div>
+                <div className="bcp-import-actions">
+                  <span>Perubahan periode dicatat pada Audit Trail.</span>
+                  <div className="bcp-heading-actions">
+                    {period.status === 'OPEN' && <button className="bcp-button bcp-button-secondary" onClick={() => updatePeriodStatus(period, 'REVIEW')}>Mulai Review</button>}
+                    {period.status === 'REVIEW' && <button className="bcp-button bcp-button-secondary" onClick={() => updatePeriodStatus(period, 'OPEN')}>Kembali OPEN</button>}
+                    {period.status !== 'CLOSED' && <button className="bcp-button bcp-button-quiet" onClick={() => updatePeriodStatus(period, 'CLOSED')}>Tutup Periode</button>}
+                    {period.status === 'CLOSED' && <button className="bcp-button bcp-button-primary" onClick={() => updatePeriodStatus(period, 'OPEN')}>Buka Kembali</button>}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+          <div className="bcp-security-note"><strong>Aturan Reporting Date</strong><span>BCP belum otomatis memilih Tanggal Aju, Tanggal Daftar, atau tanggal transaksi sebagai dasar periode. Penetapan otomatis per jenis BC akan diaktifkan setelah mapping tanggal CEISA disepakati dan diuji.</span></div>
         </section>
       )}
 
@@ -509,7 +586,7 @@ export default function BCP() {
               {documentRows.map(row => <tr key={row.document_id}><td>{row.document_type}</td><td>{row.registration_number || row.current_data?.registration_number || '—'}</td><td>{row.aju_number || row.current_data?.nomor_aju || row.current_data?.aju_number || '—'}</td><td><span className="bcp-table-status">{row.business_status || '—'}</span></td><td>{row.amendment_status || 'ORIGINAL'}</td><td><button className="bcp-text-button" onClick={() => setSelectedDocumentId(row.document_id)}>Lihat</button></td></tr>)}
             </tbody></table></div>
           )}
-          {selectedDocument && <div className="bcp-detail-panel"><div className="bcp-section-title"><h3>Detail Dokumen</h3><button className="bcp-text-button" onClick={() => setSelectedDocumentId(null)}>Tutup detail</button></div><div className="bcp-info-grid"><div><span>Document ID</span><code>{selectedDocument.document_id}</code></div><div><span>Nomor Daftar</span><strong>{selectedDocument.registration_number || '—'}</strong></div><div><span>Nomor Aju</span><strong>{selectedDocument.aju_number || selectedDocument.current_data?.nomor_aju || selectedDocument.current_data?.aju_number || '—'}</strong></div><div><span>Jumlah Item</span><strong>{selectedDocument.items.length}</strong></div></div></div>}
+          {selectedDocument && <div className="bcp-detail-panel"><div className="bcp-section-title"><h3>Detail Dokumen</h3><button className="bcp-text-button" onClick={() => setSelectedDocumentId(null)}>Tutup detail</button></div><div className="bcp-info-grid"><div><span>Document ID</span><code>{selectedDocument.document_id}</code></div><div><span>Nomor Daftar</span><strong>{selectedDocument.registration_number || '—'}</strong></div><div><span>Nomor Aju</span><strong>{selectedDocument.aju_number || selectedDocument.current_data?.nomor_aju || selectedDocument.current_data?.aju_number || '—'}</strong></div><div><span>Jumlah Item</span><strong>{selectedDocument.items.length}</strong></div></div><label className="bcp-period-assignment">Periode Bulanan<select value={selectedDocument.period_id || ''} onChange={e => e.target.value && changeDocumentPeriod(selectedDocument.document_id, e.target.value)}><option value="">Belum ditetapkan</option>{project.data.periods.filter(period => period.status !== 'CLOSED' || period.period_id === selectedDocument.period_id).map(period => <option key={period.period_id} value={period.period_id}>{period.period_key} · {period.status}</option>)}</select></label></div>}
         </section>
       )}
 
