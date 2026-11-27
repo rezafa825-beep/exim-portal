@@ -87,9 +87,8 @@ export function appendImportedDocument(project, documentInput, itemInputs = [], 
     throw new Error('Document ID sudah digunakan.');
   }
   if (next.data.documents.some(row =>
-    row.document_type === document.document_type &&
-    row.registration_number &&
-    row.registration_number === document.registration_number
+    (document.aju_number && row.aju_number === document.aju_number) ||
+    (row.document_type === document.document_type && document.registration_number && row.registration_number === document.registration_number)
   )) {
     throw new Error('Kandidat duplikasi nomor daftar ditemukan. Jalankan Duplicate Review sebelum commit.');
   }
