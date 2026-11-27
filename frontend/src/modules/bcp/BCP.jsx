@@ -6,6 +6,7 @@ import { downloadProjectArchive, readProjectArchive } from './projectPackage';
 import { getDocumentView, searchDocuments, searchItems } from './registryEngine';
 import { commitPartialImport, evaluateStagedImport } from './importEngine';
 import { buildDuplicateReview, recordDuplicateDecision } from './duplicateReviewEngine';
+import { applyStagingCorrection, getStagingValidationSummary } from './stagingEngine';
 
 function formatDate(value) {
   if (!value) return 'Belum pernah disimpan';
@@ -218,6 +219,22 @@ export default function BCP() {
   const selectedDocument = project && selectedDocumentId ? getDocumentView(project, selectedDocumentId) : null;
   const stagedEvaluation = project ? evaluateStagedImport(project, stagedFiles) : [];
   const duplicateCandidates = project ? buildDuplicateReview(project, stagedFiles) : [];
+  const stagingValidation = getStagingValidationSummary(stagedFiles);
+  const correctStagedValue = (entry, entityType, entityId, fieldPath, label, currentValue) => {
+    const value = window.prompt(`Nilai baru untuk ${label}:`, currentValue == null ? '' : String(currentValue));
+    if (value === null) return;
+    const reason = window.prompt('Alasan koreksi staging:');
+    if (!reason || !reason.trim()) return;
+    try {
+      setStagedFiles(current => applyStagingCorrection(current, {
+        document_id: entry.document.document_id, entity_type: entityType, entity_id: entityId,
+        field_path: fieldPath, new_value: value, reason,
+        operator_id: project?.settings?.operator?.operator_id || 'LOCAL-USER-001'
+      }));
+      setMessage('Koreksi staging disimpan. Nilai asli CEISA dan file sumber tetap tidak berubah.');
+      setError('');
+    } catch (e) { setError(e.message || 'Koreksi staging gagal.'); }
+  };
   const decideDuplicate = (candidate, decision) => {
     const reason = window.prompt('Masukkan alasan keputusan duplikasi:');
     if (!reason || !reason.trim()) return;
@@ -271,6 +288,7 @@ export default function BCP() {
         {project && <button className={view === 'documents' ? 'active' : ''} onClick={() => { setSelectedDocumentId(null); go('documents'); }}>Document Registry</button>}
         {project && <button className={view === 'items' ? 'active' : ''} onClick={() => go('items')}>Item Registry</button>}
         {project && <button className={view === 'duplicates' ? 'active' : ''} onClick={() => go('duplicates')}>Duplicate Review {duplicateCandidates.length ? `(${duplicateCandidates.length})` : ''}</button>}
+        {project && <button className={view === 'validation' ? 'active' : ''} onClick={() => go('validation')}>Validation Center</button>}
         {project && <button className={view === 'settings' ? 'active' : ''} onClick={() => go('settings')}>Pengaturan Proyek</button>}
         {project && <button className={view === 'diagnostics' ? 'active' : ''} onClick={() => go('diagnostics')}>System Diagnostics</button>}
       </nav>
@@ -379,6 +397,46 @@ export default function BCP() {
             </>
           )}
           <div className="bcp-security-note"><strong>Aturan impor</strong><span>Data sumber CEISA tidak diubah. Dokumen valid dan unik dapat diimpor terpisah; error, duplikasi, dan klasifikasi yang belum jelas tetap ditahan. File sumber yang sudah dipakai akan disertakan dalam proyek .bcp.</span></div>
+        </section>
+      )}
+
+      {view === 'validation' && project && (
+        <section className="bcp-content">
+          <div className="bcp-section-heading">
+            <div><span className="bcp-eyebrow">STAGING VALIDATION &amp; CORRECTION</span><h2>Validation Center</h2><p>Periksa error dan lakukan koreksi pada nilai hasil ekstraksi sebelum Partial Import. Nilai sumber asli tidak pernah ditimpa.</p></div>
+          </div>
+          {stagingValidation.length === 0 ? (
+            <div className="bcp-empty"><div>✓</div><strong>Belum ada data staging</strong><span>Unggah file CEISA terlebih dahulu pada halaman Upload CEISA.</span></div>
+          ) : stagingValidation.map((file, index) => (
+            <article className="bcp-stage-file" key={file.source_id || file.file_name + index}>
+              <div className="bcp-stage-file-head"><div><strong>{file.file_name}</strong><small>{file.documents.length} dokumen · {file.file_error ? 'File Error' : 'Sudah diekstrak'}</small></div><span className={'bcp-stage-badge ' + (file.file_error ? 'warning' : 'ready')}>{file.file_error ? 'FILE ERROR' : 'STAGING'}</span></div>
+              {file.file_error && <div className="bcp-error">{file.file_error}</div>}
+              {file.documents.map(summary => {
+                const stagedEntry = stagedFiles.find(row => row.source?.source_id === file.source_id)?.documents?.find(row => row.document.document_id === summary.document_id);
+                if (!stagedEntry) return null;
+                return (
+                  <div className="bcp-detail-panel" key={summary.document_id}>
+                    <div className="bcp-section-title"><h3>{summary.document_type} · {summary.aju_number || 'Tanpa Nomor Aju'}</h3><span className={'bcp-stage-badge ' + (summary.status === 'READY' ? 'ready' : 'warning')}>{summary.status}</span></div>
+                    <div className="bcp-info-grid">
+                      <div><span>Nomor Daftar</span><strong>{stagedEntry.document.registration_number || '—'}</strong><button className="bcp-text-button" onClick={() => correctStagedValue(stagedEntry, 'DOCUMENT', stagedEntry.document.document_id, 'current_data.nomor_daftar', 'Nomor Daftar', stagedEntry.document.registration_number)}>Koreksi Nomor Daftar</button></div>
+                      <div><span>Tanggal Daftar</span><strong>{stagedEntry.document.dates?.registration || '—'}</strong><button className="bcp-text-button" onClick={() => correctStagedValue(stagedEntry, 'DOCUMENT', stagedEntry.document.document_id, 'current_data.tanggal_daftar', 'Tanggal Daftar', stagedEntry.document.dates?.registration)}>Koreksi Tanggal Daftar</button></div>
+                    </div>
+                    {stagedEntry.items.map(item => (
+                      <div className="bcp-registry-toolbar" key={item.item_id}>
+                        <span>Seri {item.item_sequence} · {item.item_code || 'Tanpa Kode'}</span>
+                        <span>{item.quantity ?? '—'} {item.unit || ''}</span>
+                        <button className="bcp-text-button" onClick={() => correctStagedValue(stagedEntry, 'ITEM', item.item_id, 'current_data.description', 'Uraian Barang', item.description)}>Koreksi Uraian</button>
+                        <button className="bcp-text-button" onClick={() => correctStagedValue(stagedEntry, 'ITEM', item.item_id, 'current_data.quantity', 'Jumlah Satuan', item.quantity)}>Koreksi Jumlah</button>
+                      </div>
+                    ))}
+                    {summary.issues.length > 0 && <details className="bcp-stage-issues"><summary>Temuan validasi ({summary.issues.length})</summary>{summary.issues.map((issue, issueIndex) => <div key={issue.code + issueIndex}><b>{issue.severity}</b> · {issue.message}</div>)}</details>}
+                    {summary.corrections.length > 0 && <div className="bcp-stage-issues"><b>{summary.corrections.length} koreksi staging</b>{summary.corrections.map(correction => <div key={correction.correction_id}>{correction.field_path}: {String(correction.old_value ?? '—')} → {String(correction.new_value ?? '—')} · {correction.reason}</div>)}</div>}
+                  </div>
+                );
+              })}
+            </article>
+          ))}
+          <div className="bcp-security-note"><strong>Batas koreksi staging</strong><span>Field sensitif seperti Nomor Aju, identitas sumber, dan Source ID tidak dapat diedit melalui Validation Center. Koreksi disimpan sebagai riwayat dan baru masuk ke Audit Trail proyek ketika dokumen berhasil diimpor.</span></div>
         </section>
       )}
 
