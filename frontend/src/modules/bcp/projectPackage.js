@@ -1,0 +1,100 @@
+import { strToU8, strFromU8, zipSync, unzipSync } from 'fflate';
+import { BCP_FORMAT, BCP_FORMAT_VERSION, validateProject, refreshProjectCounts } from './projectSchema';
+
+const MAX_PROJECT_FILE_BYTES = 100 * 1024 * 1024;
+const MAX_UNCOMPRESSED_BYTES = 500 * 1024 * 1024;
+const MAX_ARCHIVE_ENTRIES = 10000;
+
+function jsonBytes(value) {
+  return strToU8(JSON.stringify(value, null, 2));
+}
+
+export function buildProjectArchive(project) {
+  const errors = validateProject(project);
+  if (errors.length) throw new Error(errors.join(' '));
+  const normalized = refreshProjectCounts(project);
+  const manifest = {
+    ...normalized.manifest,
+    format: BCP_FORMAT,
+    format_version: BCP_FORMAT_VERSION,
+    last_saved_at: new Date().toISOString()
+  };
+  const entries = {
+    'manifest.json': jsonBytes(manifest),
+    'data/documents.json': jsonBytes(normalized.data.documents),
+    'data/items.json': jsonBytes(normalized.data.items),
+    'data/periods.json': jsonBytes(normalized.data.periods),
+    'data/corrections.json': jsonBytes(normalized.data.corrections),
+    'data/validation.json': jsonBytes(normalized.data.validation),
+    'data/audit_log.json': jsonBytes(normalized.data.audit_log),
+    'sources/source_registry.json': jsonBytes(normalized.sources.source_registry),
+    'settings/project_settings.json': jsonBytes(normalized.settings)
+  };
+  return { bytes: zipSync(entries, { level: 6 }), manifest };
+}
+
+function readJson(entries, path, fallback) {
+  const bytes = entries[path];
+  if (!bytes) return fallback;
+  try { return JSON.parse(strFromU8(bytes)); }
+  catch { throw new Error(`File internal ${path} bukan JSON yang valid.`); }
+}
+
+function assertSafeArchive(entries) {
+  const names = Object.keys(entries);
+  if (names.length > MAX_ARCHIVE_ENTRIES) throw new Error('Proyek berisi terlalu banyak file internal.');
+  let total = 0;
+  for (const name of names) {
+    if (name.startsWith('/') || name.includes('\\') || name.split('/').some(part => part === '..' || part === '.')) {
+      throw new Error('Arsip berisi jalur file yang tidak aman.');
+    }
+    total += entries[name]?.byteLength || 0;
+    if (total > MAX_UNCOMPRESSED_BYTES) throw new Error('Ukuran hasil ekstraksi proyek melewati batas keamanan 500 MB.');
+  }
+}
+
+export async function readProjectArchive(file) {
+  if (!file || !/\.bcp$/i.test(file.name)) throw new Error('Pilih file proyek dengan ekstensi .bcp.');
+  if (file.size > MAX_PROJECT_FILE_BYTES) throw new Error('Ukuran file proyek melebihi batas 100 MB.');
+  const input = new Uint8Array(await file.arrayBuffer());
+  let entries;
+  try { entries = unzipSync(input); }
+  catch { throw new Error('File .bcp rusak atau bukan arsip proyek yang valid.'); }
+  assertSafeArchive(entries);
+  const manifest = readJson(entries, 'manifest.json', null);
+  if (!manifest || manifest.format !== BCP_FORMAT) throw new Error('Manifest tidak ditemukan atau format proyek tidak dikenali.');
+  if (manifest.format_version !== BCP_FORMAT_VERSION) {
+    throw new Error(`Versi format proyek ${manifest.format_version || 'tidak diketahui'} belum didukung oleh aplikasi ini.`);
+  }
+  const project = {
+    manifest,
+    data: {
+      documents: readJson(entries, 'data/documents.json', []),
+      items: readJson(entries, 'data/items.json', []),
+      periods: readJson(entries, 'data/periods.json', []),
+      corrections: readJson(entries, 'data/corrections.json', []),
+      validation: readJson(entries, 'data/validation.json', []),
+      audit_log: readJson(entries, 'data/audit_log.json', [])
+    },
+    sources: { source_registry: readJson(entries, 'sources/source_registry.json', []) },
+    settings: readJson(entries, 'settings/project_settings.json', {})
+  };
+  const errors = validateProject(project);
+  if (errors.length) throw new Error(errors.join(' '));
+  return project;
+}
+
+export function downloadProjectArchive(project) {
+  const { bytes, manifest } = buildProjectArchive(project);
+  const blob = new Blob([bytes], { type: 'application/vnd.reza.bcp+zip' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  const safeName = (manifest.project_name || 'BCP_PROJECT').replace(/[^a-z0-9_-]+/gi, '_');
+  anchor.href = url;
+  anchor.download = `${safeName}.bcp`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+  return manifest;
+}
