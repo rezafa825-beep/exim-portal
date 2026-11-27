@@ -86,9 +86,19 @@ The current test suite covers:
 - Project archive round-trip and checksum validation.
 - Unsafe ZIP path rejection.
 
+### M4 — Duplicate Review & Validation
+- Duplicate Review Center with separate file-hash and document-identity candidates.
+- Decisions: Use Existing, Use New, Keep Both, and Defer Review; each requires a reason and creates an audit event.
+- Use Existing links a new source file to the existing document without creating a new transaction.
+- Use New and Keep Both preserve both document records and create an explicit relationship between them.
+- Validation Center supports controlled staging corrections for selected document and item fields.
+- Original normalized values remain preserved; corrected values become Current values after import.
+- Staging corrections are committed to correction history and Audit Trail only when the document is imported.
+- Import decisions are stored in `data/import_decisions.json` inside the `.bcp` project.
+
 ## Remaining work
 
-- M4: Duplicate Review Center, staging corrections, full validation review, and import decision history.
+- M4 completion: broader browser acceptance tests, more validation rules, and review of duplicate edge cases.
 - M5: Monthly Period management and historical workbook migration.
 - M6: Reports and Export Center.
 - M7: Additional BC document types.
