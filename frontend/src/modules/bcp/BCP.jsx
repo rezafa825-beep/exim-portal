@@ -8,6 +8,7 @@ import { commitPartialImport, evaluateStagedImport } from './importEngine';
 import { buildDuplicateReview, recordDuplicateDecision } from './duplicateReviewEngine';
 import { applyStagingCorrection, getStagingValidationSummary } from './stagingEngine';
 import { createMonthlyPeriod, changeMonthlyPeriodStatus, assignDocumentToPeriod, getMonthlyPeriodSummary } from './periodEngine';
+import { buildExportWorkbook, downloadExportWorkbook, recordExportHistory, EXPORT_PRESETS, getExportFields, saveExportProfile } from './exportEngine';
 
 function formatDate(value) {
   if (!value) return 'Belum pernah disimpan';
@@ -30,6 +31,11 @@ export default function BCP() {
   const [stagedFiles, setStagedFiles] = useState([]);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState([]);
   const [duplicateFilter, setDuplicateFilter] = useState('ALL');
+  const [exportPreset, setExportPreset] = useState('DOC_REGISTRY');
+  const [exportVersion, setExportVersion] = useState('CURRENT');
+  const [exportEntityType, setExportEntityType] = useState('DOCUMENT');
+  const [exportColumns, setExportColumns] = useState(['nomor_aju','nomor_daftar','document_type']);
+  const [exportProfileName, setExportProfileName] = useState('');
   const [directionOverrides, setDirectionOverrides] = useState({});
   const [stageBusy, setStageBusy] = useState(false);
   const [uploadDrag, setUploadDrag] = useState(false);
@@ -243,6 +249,39 @@ export default function BCP() {
     } catch (e) { setError(e.message || 'Gagal menetapkan periode dokumen.'); }
   };
 
+  const exportNow = () => {
+    if (!project) return;
+    try {
+      const custom = exportPreset === 'CUSTOM' ? { entity_type: exportEntityType, columns: exportColumns } : null;
+      const workbook = buildExportWorkbook(project, { preset: exportPreset, dataVersion: exportVersion, custom });
+      const fileName = `BCP_${exportPreset}_${new Date().toISOString().slice(0,10)}.xlsx`;
+      const bytes = downloadExportWorkbook(workbook, fileName);
+      setProject(current => recordExportHistory(current, {
+        preset: exportPreset, data_version: exportVersion, file_name: fileName,
+        record_count: exportEntityType === 'ITEM' ? current.data.items.length : current.data.documents.length
+      }));
+      setMessage(`Export berhasil dibuat: ${fileName} (${formatBytes(bytes)}).`);
+      setError('');
+    } catch (e) { setError(e.message || 'Export gagal dibuat.'); }
+  };
+  const saveCurrentExportProfile = () => {
+    try {
+      setProject(current => saveExportProfile(current, {
+        name: exportProfileName, entity_type: exportEntityType, columns: exportColumns
+      }));
+      setMessage('Profil Custom Export berhasil disimpan dalam proyek.');
+      setExportProfileName('');
+      setError('');
+    } catch (e) { setError(e.message || 'Profil export gagal disimpan.'); }
+  };
+  const loadExportProfile = profileId => {
+    const profile = project?.settings?.export?.profiles?.find(row => row.profile_id === profileId);
+    if (!profile) return;
+    setExportEntityType(profile.entity_type);
+    setExportColumns(profile.columns);
+    setExportPreset('CUSTOM');
+  };
+
   const updateOperator = value => {
     setProject(current => refreshProjectCounts({
       ...current,
@@ -327,6 +366,7 @@ export default function BCP() {
         {project && <button className={view === 'duplicates' ? 'active' : ''} onClick={() => go('duplicates')}>Duplicate Review {duplicateCandidates.length ? `(${duplicateCandidates.length})` : ''}</button>}
         {project && <button className={view === 'validation' ? 'active' : ''} onClick={() => go('validation')}>Validation Center</button>}
         {project && <button className={view === 'periods' ? 'active' : ''} onClick={() => go('periods')}>Monthly Period</button>}
+        {project && <button className={view === 'exports' ? 'active' : ''} onClick={() => go('exports')}>Export Center</button>}
         {project && <button className={view === 'settings' ? 'active' : ''} onClick={() => go('settings')}>Pengaturan Proyek</button>}
         {project && <button className={view === 'diagnostics' ? 'active' : ''} onClick={() => go('diagnostics')}>System Diagnostics</button>}
       </nav>
@@ -435,6 +475,75 @@ export default function BCP() {
             </>
           )}
           <div className="bcp-security-note"><strong>Aturan impor</strong><span>Data sumber CEISA tidak diubah. Dokumen valid dan unik dapat diimpor terpisah; error, duplikasi, dan klasifikasi yang belum jelas tetap ditahan. File sumber yang sudah dipakai akan disertakan dalam proyek .bcp.</span></div>
+        </section>
+      )}
+
+      {view === 'exports' && project && (
+        <section className="bcp-content">
+          <div className="bcp-section-heading">
+            <div><span className="bcp-eyebrow">STANDARD &amp; CUSTOM EXPORT</span><h2>Export Center</h2><p>Buat workbook Excel dari Document Registry, Item Registry, periode, sumber, koreksi, dan Audit Trail. Export tidak mengubah Registry.</p></div>
+          </div>
+          <div className="bcp-export-form">
+            <label>Standard Export Preset
+              <select value={exportPreset} onChange={e => setExportPreset(e.target.value)}>
+                {EXPORT_PRESETS.map(preset => <option key={preset} value={preset}>{preset}</option>)}
+                <option value="CUSTOM">CUSTOM</option>
+              </select>
+            </label>
+            <label>Data Version
+              <select value={exportVersion} onChange={e => setExportVersion(e.target.value)}>
+                <option value="CURRENT">Current (default)</option>
+                <option value="ORIGINAL">Original</option>
+                <option value="COMPARISON">Comparison Export</option>
+              </select>
+            </label>
+            <label>Profil tersimpan
+              <select defaultValue="" onChange={e => loadExportProfile(e.target.value)}>
+                <option value="">Pilih profil Custom Export</option>
+                {(project.settings.export.profiles || []).map(profile => <option key={profile.profile_id} value={profile.profile_id}>{profile.name}</option>)}
+              </select>
+            </label>
+          </div>
+          {exportPreset === 'CUSTOM' && (
+            <div className="bcp-detail-panel">
+              <div className="bcp-section-title"><h3>Custom Export</h3><span>{exportColumns.length} kolom dipilih</span></div>
+              <label className="bcp-period-assignment">Jenis Registry
+                <select value={exportEntityType} onChange={e => { setExportEntityType(e.target.value); setExportColumns([]); }}>
+                  <option value="DOCUMENT">Document Registry</option><option value="ITEM">Item Registry</option>
+                </select>
+              </label>
+              <div className="bcp-export-columns">
+                {getExportFields(exportEntityType).map(field => (
+                  <label key={field.key}><input type="checkbox" checked={exportColumns.includes(field.key)} onChange={e => setExportColumns(current => e.target.checked ? [...current, field.key] : current.filter(key => key !== field.key))}/><span>{field.label}</span></label>
+                ))}
+              </div>
+              <div className="bcp-registry-toolbar">
+                <input value={exportProfileName} onChange={e => setExportProfileName(e.target.value)} placeholder="Nama profil export"/>
+                <button className="bcp-button bcp-button-secondary" onClick={saveCurrentExportProfile}>Simpan Profil</button>
+              </div>
+              <p className="bcp-muted">Profil menyimpan pilihan jenis registry dan kolom. Filter lanjutan, grouping, sorting, dan label kolom khusus akan dilengkapi pada iterasi Export Center berikutnya.</p>
+            </div>
+          )}
+          <div className="bcp-detail-panel">
+            <div className="bcp-section-title"><h3>Preview Konfigurasi Export</h3><span>{exportVersion}</span></div>
+            <div className="bcp-info-grid">
+              <div><span>Preset</span><strong>{exportPreset}</strong></div>
+              <div><span>Dokumen</span><strong>{project.data.documents.length.toLocaleString('id-ID')}</strong></div>
+              <div><span>Barang</span><strong>{project.data.items.length.toLocaleString('id-ID')}</strong></div>
+              <div><span>File sumber</span><strong>{project.sources.source_registry.length.toLocaleString('id-ID')}</strong></div>
+            </div>
+            {exportPreset === 'CUSTOM' && <p className="bcp-muted">Kolom: {getExportFields(exportEntityType).filter(field => exportColumns.includes(field.key)).map(field => field.label).join(' · ') || 'Belum ada kolom dipilih'}</p>}
+            <div className="bcp-import-actions">
+              <span>Workbook akan memuat README, VALIDATION_SUMMARY, dan EXPORT_METADATA.</span>
+              <button className="bcp-button bcp-button-primary" onClick={exportNow} disabled={exportPreset === 'CUSTOM' && exportColumns.length === 0}>Export Excel (.xlsx)</button>
+            </div>
+          </div>
+          <div className="bcp-section-title"><h3>Riwayat Export</h3><span>{project.data.export_history.length} export</span></div>
+          {project.data.export_history.length === 0 ? <div className="bcp-empty"><div>⇩</div><strong>Belum ada riwayat export</strong><span>Riwayat akan dicatat setelah workbook berhasil dibuat.</span></div> : (
+            <div className="bcp-registry-table-wrap"><table className="bcp-registry-table"><thead><tr><th>Waktu</th><th>Preset</th><th>Data Version</th><th>Nama File</th><th>Record</th></tr></thead><tbody>
+              {[...project.data.export_history].reverse().map(row => <tr key={row.export_id}><td>{formatDate(row.exported_at)}</td><td>{row.preset}</td><td>{row.data_version}</td><td>{row.file_name}</td><td>{row.record_count}</td></tr>)}
+            </tbody></table></div>
+          )}
         </section>
       )}
 
