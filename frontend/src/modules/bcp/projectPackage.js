@@ -20,7 +20,7 @@ async function sha256Hex(bytes) {
 function safeInternalPath(path) {
   return typeof path === 'string' &&
     /^sources\/(ceisa|historical|other)\/[^/]+$/.test(path) &&
-    !path.includes('\\\\') &&
+    !path.includes('\\') &&
     !path.split('/').some(part => !part || part === '..' || part === '.');
 }
 
@@ -67,7 +67,7 @@ function preflightArchive(bytes) {
     const nameEnd = nameStart + nameLength;
     if (nameEnd + extraLength + commentLength > bytes.length) throw new Error('Nama file ZIP terpotong.');
     const name = decoder.decode(bytes.subarray(nameStart, nameEnd));
-    if (name.startsWith('/') || name.includes('\\\\') || name.split('/').some(part => part === '..' || part === '.')) {
+    if (name.startsWith('/') || name.includes('\\') || name.split('/').some(part => part === '..' || part === '.')) {
       throw new Error('Arsip berisi jalur file yang tidak aman.');
     }
     totalUncompressed += uncompressedSize;
