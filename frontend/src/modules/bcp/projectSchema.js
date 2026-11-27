@@ -31,13 +31,14 @@ export function createEmptyProject({ projectName, companyName = '' }) {
       validation: [],
       relationships: [],
       import_decisions: [],
+      export_history: [],
       audit_log: []
     },
     sources: { source_registry: [], files: {} },
     settings: {
       operator: { operator_id: 'LOCAL-USER-001', display_name: 'Default Operator' },
       project: { reminder_minutes: 5, reminder_change_count: 10 },
-      export: { default_data_version: 'CURRENT' }
+      export: { default_data_version: 'CURRENT', profiles: [] }
     }
   };
 }
@@ -51,7 +52,7 @@ export function validateProject(project) {
   if (!project.data || !Array.isArray(project.data.documents) || !Array.isArray(project.data.items)) {
     errors.push('Data documents/items tidak valid.');
   }
-  for (const key of ['raw_materials', 'raw_material_tariffs', 'periods', 'corrections', 'validation', 'relationships', 'import_decisions', 'audit_log']) {
+  for (const key of ['raw_materials', 'raw_material_tariffs', 'periods', 'corrections', 'validation', 'relationships', 'import_decisions', 'export_history', 'audit_log']) {
     if (!Array.isArray(project.data?.[key])) errors.push(`Data ${key} harus berupa array.`);
   }
   if (!Array.isArray(project.sources?.source_registry)) errors.push('Source registry tidak valid.');
