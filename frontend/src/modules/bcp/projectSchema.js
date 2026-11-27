@@ -47,7 +47,7 @@ export function validateProject(project) {
   if (!project.data || !Array.isArray(project.data.documents) || !Array.isArray(project.data.items)) {
     errors.push('Data documents/items tidak valid.');
   }
-  for (const key of ['periods', 'corrections', 'validation', 'audit_log']) {
+  for (const key of ['periods', 'corrections', 'validation', 'relationships', 'audit_log']) {
     if (!Array.isArray(project.data?.[key])) errors.push(`Data ${key} harus berupa array.`);
   }
   if (!Array.isArray(project.sources?.source_registry)) errors.push('Source registry tidak valid.');
