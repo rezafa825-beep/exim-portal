@@ -219,10 +219,13 @@ export default function BCP() {
     } catch (e) { setError(e.message || 'Gagal membuat periode.'); }
   };
   const updatePeriodStatus = (period, status) => {
-    const reason = (status === 'CLOSED' || period.status === 'CLOSED')
-      ? window.prompt('Alasan penutupan atau pembukaan kembali periode:')
-      : window.prompt('Catatan perubahan status (opsional):') || '';
-    if (reason === null) return;
+    const reasonInput = window.prompt(
+      status === 'CLOSED' || period.status === 'CLOSED'
+        ? 'Alasan penutupan atau pembukaan kembali periode:'
+        : 'Catatan perubahan status (opsional):'
+    );
+    if (reasonInput === null) return;
+    const reason = reasonInput.trim();
     try {
       setProject(current => changeMonthlyPeriodStatus(current, period.period_id, status, reason));
       setMessage(`Status periode ${period.period_key} diperbarui menjadi ${status}.`);
