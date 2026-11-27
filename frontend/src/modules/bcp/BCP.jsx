@@ -169,7 +169,7 @@ export default function BCP() {
 
   const addUploadFiles = async fileList => {
     if (!project) return;
-    const files = [...(fileList || [])].filter(file => /\\.(xlsx|xls|xlsm)$/i.test(file.name));
+    const files = [...(fileList || [])].filter(file => /\.(xlsx|xls|xlsm)$/i.test(file.name));
     if (!files.length) { setError('Pilih file Excel CEISA (.xlsx, .xls, atau .xlsm).'); return; }
     setStageBusy(true); setError(''); setMessage('Membaca dan mengidentifikasi file CEISA...');
     const parsed = [];
