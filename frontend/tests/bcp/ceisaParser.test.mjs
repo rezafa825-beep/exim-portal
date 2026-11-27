@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { File } from 'node:buffer';
 import * as XLSX from 'xlsx';
+import { unzipSync, zipSync, strToU8 } from 'fflate';
 import { parseBC27File } from '../../src/modules/bcp/ceisaParser.js';
 import { createEmptyProject } from '../../src/modules/bcp/projectSchema.js';
 import { commitPartialImport, evaluateStagedImport } from '../../src/modules/bcp/importEngine.js';
@@ -10,7 +11,7 @@ import { buildProjectArchive, readProjectArchive } from '../../src/modules/bcp/p
 
 const COMPANY = 'PT Chinli Plastic Materials Indonesia';
 
-function makeWorkbook({ documentCount = 1, direction = 'IN' } = {}) {
+function makeWorkbook({ documentCount = 1, direction = 'IN', missingItemIndexes = [] } = {}) {
   const workbook = XLSX.utils.book_new();
   const ajuNumbers = Array.from({ length: documentCount }, (_, i) =>
     `000027CHD8572026112700${String(1942 + i).padStart(4, '0')}`
@@ -41,7 +42,7 @@ function makeWorkbook({ documentCount = 1, direction = 'IN' } = {}) {
     rows.ENTITAS.push([aju,'1',companyCode,companyName,'0929190064455000000000']);
     rows.ENTITAS.push([aju,'2',partnerCode,partnerName,'0929190064455000000001']);
     rows.ENTITAS.push([aju,'3',direction === 'IN' ? '7' : '7',partnerName,'0929190064455000000001']);
-    rows.BARANG.push([aju,1,'64069049','PSO20148','INSOLE TEST ITEM','SPEC TEST','NPR',100,'CT',10,12.5,13.5,100,1800000,'DUP-A','DUP-B']);
+    if (!missingItemIndexes.includes(i)) rows.BARANG.push([aju,1,'64069049','PSO20148','INSOLE TEST ITEM','SPEC TEST','NPR',100,'CT',10,12.5,13.5,100,1800000,'DUP-A','DUP-B']);
     for (let m = 1; m <= 2; m++) {
       rows.BAHANBAKU.push([aju,1,m,'0',m === 1 ? '39211399' : '48169040',`RM-${m}`,`RAW MATERIAL ${m}`,'ST',m * 10,100 + m,1826300 + m,18263,1800000 + m,0]);
       rows.BAHANBAKUDOKUMEN.push([aju,1,m,'380',`SUP-${m}`,'2026-11-20']);
@@ -130,4 +131,49 @@ test('BCP project package round-trips original source bytes with checksum valida
   const restored = await readProjectArchive(new File([archive.bytes], 'package-test.bcp'));
   assert.equal(restored.manifest.project_id, project.manifest.project_id);
   assert.deepEqual([...restored.sources.files[sourcePath]], [1, 2, 3]);
+});
+
+test('Partial Import keeps invalid documents staged while importing valid documents', async () => {
+  const parsed = await parseBC27File(asFile(makeWorkbook({ documentCount: 2, direction: 'IN', missingItemIndexes: [1] }), 'partial.xlsx'), COMPANY);
+  const project = createEmptyProject({ projectName: 'PARTIAL TEST', companyName: COMPANY });
+  const evaluation = evaluateStagedImport(project, [parsed]);
+  const ready = evaluation[0].documents.filter(row => row.status === 'READY').map(row => row.document_id);
+  const result = commitPartialImport(project, [parsed], ready);
+  assert.equal(result.summary.imported_documents, 1);
+  assert.equal(result.summary.held_documents, 1);
+  assert.equal(result.project.data.documents.length, 1);
+  assert.equal(result.project.sources.source_registry[0].import_status, 'PARTIAL');
+});
+
+test('duplicate file and duplicate document are not imported as new transactions', async () => {
+  const parsed = await parseBC27File(asFile(makeWorkbook({ documentCount: 1, direction: 'IN' })), COMPANY);
+  const project = createEmptyProject({ projectName: 'DUPLICATE TEST', companyName: COMPANY });
+  const first = evaluateStagedImport(project, [parsed]);
+  const selected = first[0].documents.filter(row => row.status === 'READY').map(row => row.document_id);
+  const imported = commitPartialImport(project, [parsed], selected);
+  const duplicate = evaluateStagedImport(imported.project, [parsed]);
+  assert.equal(duplicate[0].documents[0].status, 'POSSIBLE_DUPLICATE');
+});
+
+test('project package rejects source tampering and unsafe ZIP paths', async () => {
+  const project = createEmptyProject({ projectName: 'INTEGRITY TEST', companyName: COMPANY });
+  const sourcePath = 'sources/ceisa/SRC-integrity_test.xlsx';
+  project.sources.source_registry.push({
+    source_id: 'SRC-integrity', source_type: 'CEISA', original_file_name: 'test.xlsx',
+    internal_path: sourcePath, sha256: 'source-hash', file_size: 3, document_ids: [], import_status: 'IMPORTED'
+  });
+  project.sources.files[sourcePath] = new Uint8Array([1, 2, 3]);
+  const archive = await buildProjectArchive(project);
+  const entries = unzipSync(archive.bytes);
+  entries[sourcePath] = new Uint8Array([3, 2, 1]);
+  const tampered = zipSync(entries);
+  await assert.rejects(
+    () => readProjectArchive(new File([tampered], 'tampered.bcp')),
+    /Pemeriksaan integritas gagal/
+  );
+  const unsafe = zipSync({ '../outside.txt': strToU8('unsafe') });
+  await assert.rejects(
+    () => readProjectArchive(new File([unsafe], 'unsafe.bcp')),
+    /jalur file yang tidak aman/
+  );
 });
