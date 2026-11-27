@@ -107,8 +107,8 @@ The current test suite covers:
 
 ### M6 — Reports & Export Center Foundation
 - Standard Excel presets: DOC_REGISTRY, ITEM_REGISTRY, MONTHLY_SUMMARY, BC_TYPE_REPORT, TRANSACTION_REPORT, SOURCE_REPORT, CORRECTION_REPORT, AUDIT_REPORT.
-- Custom Export supports Document or Item Registry and user-selected columns.
-- Custom column profiles are stored in project settings.
+- Custom Export supports Document or Item Registry, user-selected columns, text filters, grouping, sorting, and column-label overrides.
+- Custom column profiles (including filter/group/sort/label settings) are stored in project settings.
 - Data Version: ORIGINAL, CURRENT, and COMPARISON.
 - Workbook includes README, VALIDATION_SUMMARY, and EXPORT_METADATA sheets.
 - Export history and Audit Trail events are stored in the project; exported workbooks are not retained by BCP.
@@ -117,7 +117,7 @@ The current test suite covers:
 
 ## Remaining work
 
-- M6 completion: custom filters, grouping, sorting, column-label overrides, real content preview, and report reconciliation tests.
+- M6 completion: real content preview, report reconciliation tests, and validation of exports against larger real-world datasets.
 - M4/M5 completion: real-file browser acceptance tests, broader validation rules, period assignment review, and duplicate edge-case coverage.
 - M5: Monthly Period management and historical workbook migration.
 - M6: Reports and Export Center.
