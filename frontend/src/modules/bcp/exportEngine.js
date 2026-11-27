@@ -45,8 +45,9 @@ function safeCell(value, type = 'text') {
   const string = String(value);
   return /^[\s]*[=+\-@]/.test(string) ? `'${string}` : string;
 }
-function rowsFromFields(records, fields, dataVersion = 'CURRENT') {
-  const header = fields.map(field => field.label);
+function rowsFromFields(records, fields, dataVersion = 'CURRENT', custom = {}) {
+  const label = field => custom.label_overrides?.[field.key] || field.label;
+  const header = fields.map(label);
   const rows = records.map(record => fields.map(field => {
     const source = dataVersion === 'ORIGINAL' ? record.original_data : record.current_data;
     const value = field.key.includes('.') ? getPath(source || {}, field.key) : (source?.[field.key] ?? record[field.key]);
@@ -90,8 +91,9 @@ function buildMonthlySummary(project) {
   }
   return [headers, ...rows];
 }
-function comparisonRows(records, fields) {
-  const headers = ['Record ID', ...fields.flatMap(field => [`${field.label} - Original`, `${field.label} - Current`])];
+function comparisonRows(records, fields, custom = {}) {
+  const label = field => custom.label_overrides?.[field.key] || field.label;
+  const headers = ['Record ID', ...fields.flatMap(field => [`${label(field)} - Original`, `${label(field)} - Current`])];
   return [headers, ...records.map(record => [
     record.document_id || record.item_id,
     ...fields.flatMap(field => {
@@ -115,9 +117,44 @@ export function buildExportWorkbook(project, {
   const items = project.data.items.filter(row => docs.some(doc => doc.document_id === row.document_id));
   const docFields = DOC_FIELDS;
   const itemFields = ITEM_FIELDS;
-  const addData = (name, records, fields, entityType) => {
-    if (dataVersion === 'COMPARISON') addSplitSheets(workbook, name, comparisonRows(records, fields));
-    else addSplitSheets(workbook, name, rowsFromFields(records, fields, dataVersion));
+  const addData = (name, records, fields, entityType, config = {}) => {
+    const normalizedFields = fields.map(field => ({ ...field, label: config.label_overrides?.[field.key] || field.label }));
+    let selectedRecords = [...records];
+    for (const [key, value] of Object.entries(config.filters || {})) {
+      if (value === '' || value === null || value === undefined) continue;
+      const needle = String(value).toLowerCase();
+      selectedRecords = selectedRecords.filter(record => {
+        const current = record.current_data || {};
+        const actual = getPath(current, key) ?? getPath(record, key);
+        return String(actual ?? '').toLowerCase().includes(needle);
+      });
+    }
+    if (config.sort_by) {
+      const key = config.sort_by;
+      const direction = config.sort_direction === 'DESC' ? -1 : 1;
+      selectedRecords.sort((a,b) => {
+        const av = getPath(a.current_data || {}, key) ?? getPath(a, key) ?? '';
+        const bv = getPath(b.current_data || {}, key) ?? getPath(b, key) ?? '';
+        const an = Number(av), bn = Number(bv);
+        const compare = av !== '' && bv !== '' && Number.isFinite(an) && Number.isFinite(bn)
+          ? an - bn : String(av).localeCompare(String(bv), 'id', { numeric: true, sensitivity: 'base' });
+        return compare * direction;
+      });
+    }
+    const matrix = dataVersion === 'COMPARISON'
+      ? comparisonRows(selectedRecords, normalizedFields, config)
+      : rowsFromFields(selectedRecords, normalizedFields, dataVersion, config);
+    if (config.group_by) {
+      const groupField = normalizedFields.find(field => field.key === config.group_by);
+      if (groupField) {
+        matrix[0].unshift('Group: ' + (config.label_overrides?.[groupField.key] || groupField.label));
+        for (let index = 1; index < matrix.length; index++) {
+          const record = selectedRecords[index - 1];
+          matrix[index].unshift(String(getPath(record.current_data || {}, config.group_by) ?? getPath(record, config.group_by) ?? '—'));
+        }
+      }
+    }
+    addSplitSheets(workbook, name, matrix);
   };
 
   if (preset === 'DOC_REGISTRY') addData('DOCUMENT_REGISTRY', docs, docFields, 'DOCUMENT');
@@ -161,7 +198,7 @@ export function buildExportWorkbook(project, {
     const fields = available.filter(field => (custom?.columns || []).includes(field.key));
     if (!fields.length) throw new Error('Pilih minimal satu kolom untuk Custom Export.');
     const records = entityType === 'ITEM' ? items : docs;
-    addData(entityType === 'ITEM' ? 'CUSTOM_ITEMS' : 'CUSTOM_DOCUMENTS', records, fields, entityType);
+    addData(entityType === 'ITEM' ? 'CUSTOM_ITEMS' : 'CUSTOM_DOCUMENTS', records, fields, entityType, custom || {});
   }
 
   const readme = [
@@ -223,7 +260,7 @@ export function getExportFields(entityType = 'DOCUMENT') {
   return (entityType === 'ITEM' ? ITEM_FIELDS : DOC_FIELDS).map(field => ({ ...field }));
 }
 
-export function saveExportProfile(project, { name, entity_type = 'DOCUMENT', columns = [] }) {
+export function saveExportProfile(project, { name, entity_type = 'DOCUMENT', columns = [], filters = {}, group_by = '', sort_by = '', sort_direction = 'ASC', label_overrides = {} }) {
   const label = String(name || '').trim();
   if (!label) throw new Error('Nama profil export wajib diisi.');
   const fields = getExportFields(entity_type);
@@ -237,6 +274,11 @@ export function saveExportProfile(project, { name, entity_type = 'DOCUMENT', col
     name: label,
     entity_type,
     columns: selected,
+    filters: structuredClone(filters),
+    group_by: selected.includes(group_by) ? group_by : '',
+    sort_by: selected.includes(sort_by) ? sort_by : '',
+    sort_direction: sort_direction === 'DESC' ? 'DESC' : 'ASC',
+    label_overrides: Object.fromEntries(Object.entries(label_overrides).filter(([key]) => selected.includes(key))),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   });
