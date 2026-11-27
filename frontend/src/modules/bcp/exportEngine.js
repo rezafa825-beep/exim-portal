@@ -289,5 +289,5 @@ export function saveExportProfile(project, { name, entity_type = 'DOCUMENT', col
     created_at: new Date().toISOString(),
     operator_id: next.settings?.operator?.operator_id || 'LOCAL-USER-001'
   });
-  return next;
+  return refreshProjectCounts(next);
 }
