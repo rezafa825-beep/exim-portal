@@ -15,7 +15,7 @@ function normalizeText(value) {
 }
 
 function normalizeCompanyName(value) {
-  return normalizeText(value).toUpperCase().replace(/\\bPT\\.?\\s*/g, '').replace(/[^A-Z0-9]/g, '');
+  return normalizeText(value).toUpperCase().replace(/\bPT\.?\s*/g, '').replace(/[^A-Z0-9]/g, '');
 }
 
 function safeValue(value) {
@@ -334,7 +334,7 @@ function buildItems(aju, barangRows, bahanRows, tariffRows, otherItemRows, sourc
 }
 
 export async function parseBC27File(file, companyName) {
-  if (!file || !/\\.(xlsx|xls|xlsm)$/i.test(file.name)) throw new Error('Format file harus Excel .xlsx, .xls, atau .xlsm.');
+  if (!file || !/\.(xlsx|xls|xlsm)$/i.test(file.name)) throw new Error('Format file harus Excel .xlsx, .xls, atau .xlsm.');
   const sourceId = `SRC-${crypto.randomUUID()}`;
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: 'array', cellDates: true, raw: true, dense: false });
