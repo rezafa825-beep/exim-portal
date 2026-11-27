@@ -7,6 +7,7 @@ import { parseBC27File } from '../../src/modules/bcp/ceisaParser.js';
 import { createEmptyProject } from '../../src/modules/bcp/projectSchema.js';
 import { commitPartialImport, evaluateStagedImport } from '../../src/modules/bcp/importEngine.js';
 import { buildDuplicateReview, recordDuplicateDecision } from '../../src/modules/bcp/duplicateReviewEngine.js';
+import { applyStagingCorrection } from '../../src/modules/bcp/stagingEngine.js';
 import { getDocumentView, validateRegistryIntegrity } from '../../src/modules/bcp/registryEngine.js';
 import { buildProjectArchive, readProjectArchive } from '../../src/modules/bcp/projectPackage.js';
 
@@ -209,4 +210,25 @@ test('Duplicate Review USE_EXISTING links source without creating another transa
   assert.equal(result.project.data.documents.length, 1);
   assert.ok(result.project.data.documents[0].source_refs.includes(staged.source.source_id));
   assert.equal(result.project.sources.source_registry.length, 2);
+});
+
+test('staging correction is committed with original/current values and audit history', async () => {
+  const parsed = await parseBC27File(asFile(makeWorkbook({ documentCount: 1, direction: 'IN' })), COMPANY);
+  const entry = parsed.documents[0];
+  const corrected = applyStagingCorrection([parsed], {
+    document_id: entry.document.document_id,
+    entity_type: 'ITEM',
+    entity_id: entry.items[0].item_id,
+    field_path: 'current_data.description',
+    new_value: 'Corrected item description',
+    reason: 'Uraian disesuaikan dengan dokumen pendukung.'
+  });
+  const staged = corrected[0];
+  const project = createEmptyProject({ projectName: 'STAGING CORRECTION TEST', companyName: COMPANY });
+  const result = commitPartialImport(project, [staged], [entry.document.document_id]);
+  const importedItem = result.project.data.items[0];
+  assert.equal(importedItem.original_data.description, 'INSOLE TEST ITEM');
+  assert.equal(importedItem.current_data.description, 'Corrected item description');
+  assert.equal(result.project.data.corrections.length, 1);
+  assert.equal(result.project.data.documents[0].amendment_status, 'AMENDED');
 });
