@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate';
 import { createEmptyProject } from '../../src/modules/bcp/projectSchema.js';
 import { buildProjectArchive, readProjectArchive } from '../../src/modules/bcp/projectPackage.js';
-import { validateRegistryIntegrity } from '../../src/modules/bcp/registryEngine.js';
+import { getDocumentView, validateRegistryIntegrity } from '../../src/modules/bcp/registryEngine.js';
 
 test('registry integrity rejects orphaned items, tariffs, and period references', () => {
   const project = createEmptyProject({ projectName: 'Integrity' });
@@ -95,4 +95,26 @@ test('registry integrity validates source document links, unique source paths, a
   assert.ok(errors.some(message => message.includes('merujuk dokumen yang tidak tersedia')));
   assert.ok(errors.some(message => message.includes('lokasi file internal duplikat')));
   assert.ok(errors.some(message => message.includes('Tarif BBT-1 merujuk source yang tidak tersedia')));
+});
+
+
+test('document detail joins child registries correctly on a synthetic 1k-document dataset', () => {
+  const project = createEmptyProject({ projectName: 'Registry Scale Fixture' });
+  for (let index = 0; index < 1000; index++) {
+    const documentId = 'DOC-' + index;
+    const itemId = 'ITEM-' + index;
+    const materialId = 'BB-' + index;
+    project.data.documents.push({ document_id: documentId, document_type: 'BC27_IN' });
+    project.data.items.push({ item_id: itemId, document_id: documentId, item_sequence: 1 });
+    project.data.raw_materials.push({ raw_material_id: materialId, document_id: documentId, item_id: itemId });
+    project.data.raw_material_tariffs.push({
+      raw_material_tariff_id: 'BBT-' + index, document_id: documentId,
+      item_id: itemId, raw_material_id: materialId
+    });
+  }
+  const detail = getDocumentView(project, 'DOC-731');
+  assert.equal(detail.items.length, 1);
+  assert.equal(detail.items[0].raw_materials.length, 1);
+  assert.equal(detail.items[0].raw_materials[0].tariffs.length, 1);
+  assert.equal(detail.items[0].raw_materials[0].tariffs[0].raw_material_tariff_id, 'BBT-731');
 });
