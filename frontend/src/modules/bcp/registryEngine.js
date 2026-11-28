@@ -360,6 +360,19 @@ export function validateRegistryIntegrity(project) {
   const periodIds = unique(periods, 'period_id', 'Period');
   const sourceIds = unique(sources, 'source_id', 'Source');
   unique(project.data.relationships || [], 'relationship_id', 'Relationship');
+  const itemById = new Map(items.map(item => [item.item_id, item]));
+  const materialById = new Map(materials.map(material => [material.raw_material_id, material]));
+  const sourcePaths = new Set();
+
+  for (const source of sources) {
+    if (source.internal_path) {
+      if (sourcePaths.has(source.internal_path)) errors.push(`Source menggunakan lokasi file internal duplikat: ${source.internal_path}`);
+      sourcePaths.add(source.internal_path);
+    }
+    for (const documentId of source.document_ids || []) {
+      if (!documentIds.has(documentId)) errors.push(`Source ${source.source_id} merujuk dokumen yang tidak tersedia: ${documentId}`);
+    }
+  }
 
   for (const item of items) {
     if (!documentIds.has(item.document_id)) errors.push(`Item ${item.item_id} tidak memiliki dokumen induk.`);
@@ -376,7 +389,7 @@ export function validateRegistryIntegrity(project) {
     }
   }
   for (const material of materials) {
-    const parent = items.find(item => item.item_id === material.item_id);
+    const parent = itemById.get(material.item_id);
     if (!parent) errors.push(`Bahan baku ${material.raw_material_id} tidak memiliki item induk.`);
     else if (material.document_id !== parent.document_id) errors.push(`Bahan baku ${material.raw_material_id} memiliki dokumen induk yang tidak konsisten.`);
     for (const sourceId of material.source_refs || []) {
@@ -384,10 +397,13 @@ export function validateRegistryIntegrity(project) {
     }
   }
   for (const tariff of tariffs) {
-    const parent = materials.find(material => material.raw_material_id === tariff.raw_material_id);
+    const parent = materialById.get(tariff.raw_material_id);
     if (!parent) errors.push(`Tarif ${tariff.raw_material_tariff_id} tidak memiliki bahan baku induk.`);
     else if (tariff.document_id !== parent.document_id || tariff.item_id !== parent.item_id) {
       errors.push(`Tarif ${tariff.raw_material_tariff_id} memiliki relasi induk yang tidak konsisten.`);
+    }
+    for (const sourceId of tariff.source_refs || []) {
+      if (!sourceIds.has(sourceId)) errors.push(`Tarif ${tariff.raw_material_tariff_id} merujuk source yang tidak tersedia: ${sourceId}`);
     }
   }
   for (const relationship of project.data.relationships || []) {
