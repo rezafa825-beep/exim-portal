@@ -74,15 +74,25 @@ function currentDocumentRows(project) {
 function buildMonthlySummary(project) {
   const headers = ['Periode','Status Periode','Jenis BC','Jumlah Dokumen','Jumlah Item','Amended','VOID','CANCELLED'];
   const rows = [];
+  const confirmedByPeriod = new Map();
+  const itemsByDocument = new Map();
+  for (const doc of currentDocumentRows(project)) {
+    if (!confirmedByPeriod.has(doc.period_id)) confirmedByPeriod.set(doc.period_id, []);
+    confirmedByPeriod.get(doc.period_id).push(doc);
+  }
+  for (const item of project.data.items) {
+    if (!itemsByDocument.has(item.document_id)) itemsByDocument.set(item.document_id, 0);
+    itemsByDocument.set(item.document_id, itemsByDocument.get(item.document_id) + 1);
+  }
   for (const period of project.data.periods) {
-    const docs = currentDocumentRows(project).filter(doc => doc.period_id === period.period_id);
+    const docs = confirmedByPeriod.get(period.period_id) || [];
     const types = [...new Set(docs.map(doc => doc.document_type))];
     for (const type of types.length ? types : ['—']) {
       const subset = docs.filter(doc => doc.document_type === type);
       const ids = new Set(subset.map(doc => doc.document_id));
       rows.push([
         period.period_key, period.status, type, subset.length,
-        project.data.items.filter(item => ids.has(item.document_id)).length,
+        subset.reduce((total, doc) => total + (itemsByDocument.get(doc.document_id) || 0), 0),
         subset.filter(doc => doc.amendment_status === 'AMENDED').length,
         project.data.documents.filter(doc => doc.period_id === period.period_id && doc.business_status === 'VOID' && doc.document_type === type).length,
         project.data.documents.filter(doc => doc.period_id === period.period_id && doc.business_status === 'CANCELLED' && doc.document_type === type).length
@@ -114,7 +124,8 @@ export function buildExportWorkbook(project, {
   if (!['ORIGINAL','CURRENT','COMPARISON'].includes(dataVersion)) throw new Error('Data Version tidak dikenal.');
   const workbook = XLSX.utils.book_new();
   const docs = project.data.documents.filter(row => filters.business_status ? row.business_status === filters.business_status : (filters.include_inactive || row.business_status === 'CONFIRMED'));
-  const items = project.data.items.filter(row => docs.some(doc => doc.document_id === row.document_id));
+  const documentIds = new Set(docs.map(row => row.document_id));
+  const items = project.data.items.filter(row => documentIds.has(row.document_id));
   const docFields = DOC_FIELDS;
   const itemFields = ITEM_FIELDS;
   const addData = (name, records, fields, entityType, config = {}) => {
@@ -165,14 +176,15 @@ export function buildExportWorkbook(project, {
     for (const type of [...new Set(docs.map(row => row.document_type))].sort()) {
       const subset = docs.filter(row => row.document_type === type);
       const ids = new Set(subset.map(row => row.document_id));
-      rows.push([type, subset.length, items.filter(item => ids.has(item.document_id)).length]);
+      rows.push([type, subset.length, items.reduce((total, item) => total + (ids.has(item.document_id) ? 1 : 0), 0)]);
     }
     addSplitSheets(workbook, 'BC_TYPE_REPORT', rows);
   }
   if (preset === 'TRANSACTION_REPORT') {
     const rows = [['Jenis BC','Nomor Aju','Nomor Daftar','Seri Barang','Kode Barang','Uraian','Jumlah','Satuan','Status']];
+    const docsById = new Map(docs.map(doc => [doc.document_id, doc]));
     for (const item of items) {
-      const doc = docs.find(row => row.document_id === item.document_id);
+      const doc = docsById.get(item.document_id);
       if (doc) rows.push([doc.document_type, safeCell(doc.aju_number), safeCell(doc.registration_number), safeCell(item.item_sequence), safeCell(item.item_code), safeCell(item.description), safeCell(item.quantity,'number'), safeCell(item.unit), doc.business_status]);
     }
     addSplitSheets(workbook, 'TRANSACTION_REPORT', rows);
