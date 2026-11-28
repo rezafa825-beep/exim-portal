@@ -20,7 +20,7 @@ BCP is a browser-local module for Buku Catatan Pemasukan dan Pengeluaran. It is 
 - Original/current value separation.
 - Correction history, business status, document relationships, search, and registry integrity checks.
 - Document detail joins items, raw materials, and tariff children.
-- Registry integrity checks enforce unique IDs and valid document → item → raw material → tariff parent-child references, period assignments, and source references.
+- Registry integrity checks enforce unique IDs and valid document → item → raw material → tariff parent-child references, period assignments, source-document links, unique source paths, and source references including tariff records. Parent lookups use indexed maps rather than repeated full-array scans.
 - Auto-Recovery snapshots are schema- and registry-validated before restore; invalid snapshots are skipped rather than replacing a valid `.bcp` file.
 - Staged imports and selection state are cleared when creating, opening, or closing a project to prevent cross-project staging contamination.
 
@@ -81,7 +81,7 @@ npm run build
 npm run test:bcp
 ```
 
-The test suite previously had 36 CI-verified tests. Two additional source-integrity tests were added in the latest development commits; their CI result is pending. The expanded suite covers:
+The test suite previously had 36 CI-verified tests. Three additional integrity tests were added in the latest development commits; their CI result is pending. The expanded suite covers:
 - BC 2.7 IN single-document parsing.
 - BC 2.7 OUT single-document parsing.
 - Multi-document workbook splitting.
@@ -92,6 +92,7 @@ The test suite previously had 36 CI-verified tests. Two additional source-integr
 - Unsafe ZIP path rejection.
 - Missing required archive entry and registry orphan/reference rejection.
 - Missing original source file and source-content tampering even when the package checksum is recalculated.
+- Source Registry document links, duplicate internal paths, and tariff source references.
 
 ### M4 — Duplicate Review & Validation
 - Duplicate Review Center with separate file-hash and document-identity candidates.
