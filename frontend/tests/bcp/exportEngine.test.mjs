@@ -116,3 +116,29 @@ test('custom export preview respects selected columns and text filter', () => {
   assert.equal(preview.total_rows, 1);
   assert.deepEqual(preview.rows, [['00123']]);
 });
+
+
+test('transaction export joins 1k documents to 5k items without losing rows', () => {
+  const project = createEmptyProject({ projectName: 'EXPORT SCALE FIXTURE' });
+  for (let index = 0; index < 1000; index++) {
+    const documentId = 'DOC-' + index;
+    project.data.documents.push({
+      document_id: documentId, document_type: 'BC27_IN',
+      aju_number: String(index).padStart(20, '0'), registration_number: String(index),
+      business_status: 'CONFIRMED'
+    });
+    for (let child = 0; child < 5; child++) {
+      project.data.items.push({
+        item_id: 'ITEM-' + index + '-' + child, document_id: documentId,
+        item_sequence: String(child + 1), item_code: 'CODE-' + child,
+        description: 'Synthetic item ' + child, quantity: 1, unit: 'PRS'
+      });
+    }
+  }
+  const workbook = buildExportWorkbook(project, { preset: 'TRANSACTION_REPORT' });
+  const sheet = workbook.Sheets.TRANSACTION_REPORT;
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  assert.equal(rows.length, 5001);
+  assert.equal(rows[1][1], '00000000000000000000');
+  assert.equal(rows[5000][0], 'BC27_IN');
+});
