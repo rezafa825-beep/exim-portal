@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { File } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import * as XLSX from 'xlsx';
 import { unzipSync, zipSync, strToU8 } from 'fflate';
 import { parseBC27File } from '../../src/modules/bcp/ceisaParser.js';
@@ -125,12 +126,13 @@ test('BCP project package round-trips original source bytes with checksum valida
   project.data.import_decisions.push({ decision_id: 'DEC-1', candidate_id: 'DUP-DOCUMENT-DOC-1', decision: 'KEEP_BOTH', reason: 'Retain both.' });
   project.data.export_history.push({ export_id: 'EXPORT-1', preset: 'DOC_REGISTRY', file_name: 'docs.xlsx' });
   const sourcePath = 'sources/ceisa/SRC-test_test.xlsx';
+  const sourceBytes = new Uint8Array([1, 2, 3]);
   project.sources.source_registry.push({
     source_id: 'SRC-test', source_type: 'CEISA', original_file_name: 'test.xlsx',
-    internal_path: sourcePath, sha256: 'source-hash', file_size: 3,
+    internal_path: sourcePath, sha256: createHash('sha256').update(sourceBytes).digest('hex'), file_size: 3,
     document_ids: [], import_status: 'IMPORTED'
   });
-  project.sources.files[sourcePath] = new Uint8Array([1, 2, 3]);
+  project.sources.files[sourcePath] = sourceBytes;
   const archive = await buildProjectArchive(project);
   const restored = await readProjectArchive(new File([archive.bytes], 'package-test.bcp'));
   assert.equal(restored.manifest.project_id, project.manifest.project_id);
@@ -164,11 +166,12 @@ test('duplicate file and duplicate document are not imported as new transactions
 test('project package rejects source tampering and unsafe ZIP paths', async () => {
   const project = createEmptyProject({ projectName: 'INTEGRITY TEST', companyName: COMPANY });
   const sourcePath = 'sources/ceisa/SRC-integrity_test.xlsx';
+  const sourceBytes = new Uint8Array([1, 2, 3]);
   project.sources.source_registry.push({
     source_id: 'SRC-integrity', source_type: 'CEISA', original_file_name: 'test.xlsx',
-    internal_path: sourcePath, sha256: 'source-hash', file_size: 3, document_ids: [], import_status: 'IMPORTED'
+    internal_path: sourcePath, sha256: createHash('sha256').update(sourceBytes).digest('hex'), file_size: 3, document_ids: [], import_status: 'IMPORTED'
   });
-  project.sources.files[sourcePath] = new Uint8Array([1, 2, 3]);
+  project.sources.files[sourcePath] = sourceBytes;
   const archive = await buildProjectArchive(project);
   const entries = unzipSync(archive.bytes);
   entries[sourcePath] = new Uint8Array([3, 2, 1]);
