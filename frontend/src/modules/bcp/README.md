@@ -12,6 +12,7 @@ BCP is a browser-local module for Buku Catatan Pemasukan dan Pengeluaran. It is 
 - SHA-256 checksums for package payload files.
 - ZIP preflight checks for entry count, uncompressed size, encryption, ZIP64, duplicate internal names, local headers, central directory consistency, and unsafe paths.
 - Archive loading requires every core package entry and a valid SHA-256 checksum for every non-manifest entry.
+- Source Registry entries must resolve to an included original file; the original source SHA-256 is checked separately from the package-entry checksum.
 
 ### M2 — Registry Foundation
 - Common Document Registry and Item Registry models.
@@ -20,6 +21,8 @@ BCP is a browser-local module for Buku Catatan Pemasukan dan Pengeluaran. It is 
 - Correction history, business status, document relationships, search, and registry integrity checks.
 - Document detail joins items, raw materials, and tariff children.
 - Registry integrity checks enforce unique IDs and valid document → item → raw material → tariff parent-child references, period assignments, and source references.
+- Auto-Recovery snapshots are schema- and registry-validated before restore; invalid snapshots are skipped rather than replacing a valid `.bcp` file.
+- Staged imports and selection state are cleared when creating, opening, or closing a project to prevent cross-project staging contamination.
 
 ### M3 — BC 2.7 Extraction
 - Unified Upload for mixed single-document and multi-document Excel workbooks.
@@ -78,7 +81,7 @@ npm run build
 npm run test:bcp
 ```
 
-The current test suite contains 36 passing tests in CI and covers:
+The test suite previously had 36 CI-verified tests. Two additional source-integrity tests were added in the latest development commits; their CI result is pending. The expanded suite covers:
 - BC 2.7 IN single-document parsing.
 - BC 2.7 OUT single-document parsing.
 - Multi-document workbook splitting.
@@ -88,6 +91,7 @@ The current test suite contains 36 passing tests in CI and covers:
 - Project archive round-trip and checksum validation.
 - Unsafe ZIP path rejection.
 - Missing required archive entry and registry orphan/reference rejection.
+- Missing original source file and source-content tampering even when the package checksum is recalculated.
 
 ### M4 — Duplicate Review & Validation
 - Duplicate Review Center with separate file-hash and document-identity candidates.
