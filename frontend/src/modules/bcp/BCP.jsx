@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './bcp.css';
 import { createEmptyProject, refreshProjectCounts, validateProject } from './projectSchema';
+import { validateRegistryIntegrity } from './registryEngine';
 import { deleteRecovery, getRecovery, listRecentProjects, saveRecentProject, saveRecovery } from './projectStorage';
 import { downloadProjectArchive, readProjectArchive } from './projectPackage';
 import { getDocumentView, searchDocuments, searchItems } from './registryEngine';
@@ -19,6 +20,13 @@ function formatBytes(value) {
   if (value < 1024) return value + ' B';
   if (value < 1024 * 1024) return (value / 1024).toFixed(0) + ' KB';
   return (value / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+function validateRecoverySnapshot(snapshot) {
+  const recovered = snapshot?.project;
+  const errors = [...validateProject(recovered), ...validateRegistryIntegrity(recovered)];
+  if (errors.length) throw new Error('Snapshot Auto-Recovery tidak valid: ' + errors.join(' '));
+  return recovered;
 }
 
 export default function BCP() {
@@ -101,6 +109,15 @@ export default function BCP() {
     return () => window.clearInterval(timer);
   }, [project, isDirty]);
 
+  const resetStagingState = () => {
+    setStagedFiles([]);
+    setSelectedDocumentIds([]);
+    setDirectionOverrides({});
+    setSelectedDocumentId(null);
+    setStageBusy(false);
+    setUploadDrag(false);
+  };
+
   const createProject = () => {
     if (!projectName.trim()) { setError('Nama proyek wajib diisi.'); return; }
     const next = createEmptyProject({ projectName, companyName });
@@ -109,6 +126,7 @@ export default function BCP() {
       description: 'Proyek BCP dibuat.', created_at: new Date().toISOString(),
       operator_id: next.settings.operator.operator_id
     });
+    resetStagingState();
     setProject(next);
     setView('dashboard');
     setShowCreate(false);
@@ -124,12 +142,18 @@ export default function BCP() {
       const recovery = await getRecovery(loaded.manifest.project_id);
       let selected = loaded;
       if (recovery?.project && new Date(recovery.project.manifest.updated_at) > new Date(loaded.manifest.updated_at)) {
-        const restore = window.confirm('Ditemukan Auto-Recovery yang lebih baru dari file proyek. Pulihkan versi Auto-Recovery?');
-        if (restore) {
-          selected = recovery.project;
-          setMessage('Versi Auto-Recovery berhasil dipulihkan. Simpan kembali sebagai file .bcp.');
+        try {
+          const recoveredProject = validateRecoverySnapshot(recovery);
+          const restore = window.confirm('Ditemukan Auto-Recovery yang lebih baru dari file proyek. Pulihkan versi Auto-Recovery?');
+          if (restore) {
+            selected = recoveredProject;
+            setMessage('Versi Auto-Recovery berhasil dipulihkan. Simpan kembali sebagai file .bcp.');
+          }
+        } catch (recoveryError) {
+          setMessage('Snapshot Auto-Recovery tidak valid dan dilewati. File .bcp yang dipilih tetap dibuka.');
         }
       }
+      resetStagingState();
       setProject(selected);
       setView('dashboard');
       await saveRecentProject(selected);
@@ -151,7 +175,9 @@ export default function BCP() {
         setMessage('Belum ada snapshot Auto-Recovery untuk proyek ini. Pilih file .bcp yang tersimpan di perangkat.');
         return;
       }
-      setProject(recovery.project);
+      const recoveredProject = validateRecoverySnapshot(recovery);
+      resetStagingState();
+      setProject(recoveredProject);
       setView('dashboard');
       setMessage('Proyek dibuka dari Auto-Recovery lokal. Simpan sebagai file .bcp untuk penyimpanan permanen.');
     } catch (e) { setError(e.message || 'Gagal membuka proyek terakhir.'); }
@@ -176,6 +202,7 @@ export default function BCP() {
 
   const closeProject = () => {
     if (isDirty && !window.confirm('Proyek memiliki perubahan setelah penyimpanan terakhir. Tutup proyek dan andalkan Auto-Recovery lokal?')) return;
+    resetStagingState();
     setProject(null);
     setView('projects');
     setMessage('Proyek ditutup. Pastikan file .bcp sudah disimpan jika ingin menyimpan permanen.');
