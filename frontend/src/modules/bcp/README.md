@@ -81,7 +81,7 @@ npm run build
 npm run test:bcp
 ```
 
-The last CI-verified suite contains 39 passing tests. Three additional source-integrity and scale/regression tests have been added since then; their CI result is pending. The expanded suite covers:
+The latest CI-verified suite contains 41 passing tests, 0 failures. The new source-integrity and scale/regression coverage is included in that run. The expanded suite covers:
 - BC 2.7 IN single-document parsing.
 - BC 2.7 OUT single-document parsing.
 - Multi-document workbook splitting.
