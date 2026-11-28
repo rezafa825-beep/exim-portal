@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './bcp.css';
 import { createEmptyProject, refreshProjectCounts, validateProject } from './projectSchema';
-import { validateRegistryIntegrity } from './registryEngine';
-import { deleteRecovery, getRecovery, listRecentProjects, saveRecentProject, saveRecovery } from './projectStorage';
+import { getDocumentView, searchDocuments, searchItems, validateRegistryIntegrity } from './registryEngine';
+import { getRecovery, listRecentProjects, saveRecentProject, saveRecovery } from './projectStorage';
 import { downloadProjectArchive, readProjectArchive } from './projectPackage';
-import { getDocumentView, searchDocuments, searchItems } from './registryEngine';
 import { commitPartialImport, evaluateStagedImport } from './importEngine';
 import { buildDuplicateReview, recordDuplicateDecision } from './duplicateReviewEngine';
 import { applyStagingCorrection, getStagingValidationSummary } from './stagingEngine';
@@ -24,8 +23,10 @@ function formatBytes(value) {
 
 function validateRecoverySnapshot(snapshot) {
   const recovered = snapshot?.project;
-  const errors = [...validateProject(recovered), ...validateRegistryIntegrity(recovered)];
-  if (errors.length) throw new Error('Snapshot Auto-Recovery tidak valid: ' + errors.join(' '));
+  const schemaErrors = validateProject(recovered);
+  if (schemaErrors.length) throw new Error('Snapshot Auto-Recovery tidak valid: ' + schemaErrors.join(' '));
+  const integrityErrors = validateRegistryIntegrity(recovered);
+  if (integrityErrors.length) throw new Error('Snapshot Auto-Recovery tidak valid: ' + integrityErrors.join(' '));
   return recovered;
 }
 
