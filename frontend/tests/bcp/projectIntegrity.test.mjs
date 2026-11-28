@@ -76,3 +76,23 @@ test('project archive verifies original source SHA-256 independently from packag
     /Checksum file sumber tidak sesuai dengan Source Registry/
   );
 });
+
+
+test('registry integrity validates source document links, unique source paths, and tariff source references', () => {
+  const project = createEmptyProject({ projectName: 'Source Links' });
+  project.data.documents.push({ document_id: 'DOC-1', source_refs: [] });
+  project.data.items.push({ item_id: 'ITEM-1', document_id: 'DOC-1', source_refs: [] });
+  project.data.raw_materials.push({ raw_material_id: 'BB-1', document_id: 'DOC-1', item_id: 'ITEM-1', source_refs: [] });
+  project.data.raw_material_tariffs.push({
+    raw_material_tariff_id: 'BBT-1', document_id: 'DOC-1', item_id: 'ITEM-1',
+    raw_material_id: 'BB-1', source_refs: ['SRC-MISSING']
+  });
+  project.sources.source_registry.push(
+    { source_id: 'SRC-1', internal_path: 'sources/ceisa/SRC-1.xlsx', document_ids: ['DOC-MISSING'] },
+    { source_id: 'SRC-2', internal_path: 'sources/ceisa/SRC-1.xlsx', document_ids: [] }
+  );
+  const errors = validateRegistryIntegrity(project);
+  assert.ok(errors.some(message => message.includes('merujuk dokumen yang tidak tersedia')));
+  assert.ok(errors.some(message => message.includes('lokasi file internal duplikat')));
+  assert.ok(errors.some(message => message.includes('Tarif BBT-1 merujuk source yang tidak tersedia')));
+});
