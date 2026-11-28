@@ -219,11 +219,25 @@ export function addDocumentRelationship(project, {
 export function getDocumentView(project, documentId) {
   const document = project.data.documents.find(row => row.document_id === documentId);
   if (!document) return null;
+
+  // Build child indexes once so opening a document does not rescan every
+  // raw-material and tariff row for each parent record.
+  const materialsByItem = new Map();
+  for (const material of project.data.raw_materials) {
+    if (!materialsByItem.has(material.item_id)) materialsByItem.set(material.item_id, []);
+    materialsByItem.get(material.item_id).push(material);
+  }
+  const tariffsByMaterial = new Map();
+  for (const tariff of project.data.raw_material_tariffs) {
+    if (!tariffsByMaterial.has(tariff.raw_material_id)) tariffsByMaterial.set(tariff.raw_material_id, []);
+    tariffsByMaterial.get(tariff.raw_material_id).push(tariff);
+  }
+
   const items = project.data.items.filter(row => row.document_id === documentId).map(item => ({
     ...clone(item),
-    raw_materials: project.data.raw_materials.filter(row => row.item_id === item.item_id).map(material => ({
+    raw_materials: (materialsByItem.get(item.item_id) || []).map(material => ({
       ...clone(material),
-      tariffs: project.data.raw_material_tariffs.filter(row => row.raw_material_id === material.raw_material_id).map(clone)
+      tariffs: (tariffsByMaterial.get(material.raw_material_id) || []).map(clone)
     }))
   }));
   return { ...clone(document), items };
