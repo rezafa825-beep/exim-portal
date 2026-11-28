@@ -123,9 +123,25 @@ export async function buildProjectArchive(project) {
     'settings/project_settings.json': jsonBytes(normalized.settings)
   };
 
-  for (const [path, bytes] of Object.entries(normalized.sources.files || {})) {
+  const sourceFiles = normalized.sources.files || {};
+  for (const source of normalized.sources.source_registry || []) {
+    const path = source.internal_path;
+    if (!safeInternalPath(path)) throw new Error('Lokasi file sumber tidak valid di Source Registry.');
+    const sourceBytes = sourceFiles[path];
+    if (!sourceBytes) throw new Error('File sumber asli tidak ditemukan: ' + (source.original_file_name || path));
+    const bytes = sourceBytes instanceof Uint8Array ? sourceBytes : new Uint8Array(sourceBytes);
+    if (source.sha256) {
+      const actualSourceHash = await sha256Hex(bytes);
+      if (actualSourceHash.toLowerCase() !== String(source.sha256).toLowerCase()) {
+        throw new Error('Checksum file sumber tidak sesuai dengan Source Registry: ' + (source.original_file_name || path));
+      }
+    }
+    entries[path] = bytes;
+  }
+
+  for (const [path, bytes] of Object.entries(sourceFiles)) {
     if (!safeInternalPath(path)) throw new Error('Lokasi file sumber di dalam proyek tidak valid.');
-    entries[path] = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    if (!entries[path]) entries[path] = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   }
 
   const checksums = {};
@@ -209,6 +225,12 @@ export async function readProjectArchive(file) {
       throw new Error('Checksum file sumber tidak ditemukan: ' + source.original_file_name);
     }
     sourceFiles[source.internal_path] = entries[source.internal_path];
+    if (source.sha256) {
+      const actualSourceHash = await sha256Hex(entries[source.internal_path]);
+      if (actualSourceHash.toLowerCase() !== String(source.sha256).toLowerCase()) {
+        throw new Error('Checksum file sumber tidak sesuai dengan Source Registry: ' + (source.original_file_name || source.internal_path));
+      }
+    }
   }
 
   const project = {
