@@ -1,0 +1,243 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { File } from 'node:buffer';
+import { createHash } from 'node:crypto';
+import * as XLSX from 'xlsx';
+import { unzipSync, zipSync, strToU8 } from 'fflate';
+import { parseBC27File } from '../../src/modules/bcp/ceisaParser.js';
+import { createEmptyProject } from '../../src/modules/bcp/projectSchema.js';
+import { commitPartialImport, evaluateStagedImport } from '../../src/modules/bcp/importEngine.js';
+import { buildDuplicateReview, recordDuplicateDecision } from '../../src/modules/bcp/duplicateReviewEngine.js';
+import { applyStagingCorrection } from '../../src/modules/bcp/stagingEngine.js';
+import { getDocumentView, validateRegistryIntegrity } from '../../src/modules/bcp/registryEngine.js';
+import { buildProjectArchive, readProjectArchive } from '../../src/modules/bcp/projectPackage.js';
+
+const COMPANY = 'PT Chinli Plastic Materials Indonesia';
+
+function makeWorkbook({ documentCount = 1, direction = 'IN', missingItemIndexes = [] } = {}) {
+  const workbook = XLSX.utils.book_new();
+  const ajuNumbers = Array.from({ length: documentCount }, (_, i) =>
+    `000027CHD8572026112700${String(1942 + i).padStart(4, '0')}`
+  );
+
+  const headers = [
+    ['HEADER', ['NOMOR AJU','KODE DOKUMEN','KODE KANTOR','KODE KANTOR TUJUAN','NOMOR DAFTAR','TANGGAL DAFTAR','TANGGAL PERNYATAAN','KODE VALUTA','NDPBM','CIF','HARGA_PENYERAHAN','BRUTO','NETTO','VOLUME']],
+    ['ENTITAS', ['NOMOR AJU','SERI','KODE ENTITAS','NAMA ENTITAS','NOMOR IDENTITAS']],
+    ['BARANG', ['NOMOR AJU','SERI BARANG','HS','KODE BARANG','URAIAN','SPESIFIKASI LAIN','KODE SATUAN','JUMLAH SATUAN','KODE KEMASAN','JUMLAH KEMASAN','NETTO','BRUTO','CIF','HARGA PENYERAHAN','DUPLIKAT','DUPLIKAT']],
+    ['BAHANBAKU', ['NOMOR AJU','SERI BARANG','SERI BAHAN BAKU','KODE ASAL BAHAN BAKU','HS','KODE BARANG','URAIAN','KODE SATUAN','JUMLAH SATUAN','CIF','CIF RUPIAH','NDPBM','HARGA PENYERAHAN','HARGA PEROLEHAN']],
+    ['BAHANBAKUTARIF', ['NOMOR AJU','SERI BARANG','SERI BAHAN BAKU','KODE ASAL BAHAN BAKU','KODE PUNGUTAN','KODE TARIF','TARIF','KODE FASILITAS','TARIF FASILITAS','NILAI BAYAR','NILAI FASILITAS']],
+    ['BAHANBAKUDOKUMEN', ['NOMOR AJU','SERI BARANG','SERI BAHAN BAKU','KODE DOKUMEN','NOMOR DOKUMEN','TANGGAL DOKUMEN']],
+    ['KEMASAN', ['NOMOR AJU','SERI','KODE KEMASAN','JUMLAH KEMASAN','MEREK']],
+    ['DOKUMEN', ['NOMOR AJU','SERI','KODE DOKUMEN','NOMOR DOKUMEN','TANGGAL DOKUMEN']],
+    ['PENGANGKUT', ['NOMOR AJU','SERI','NAMA PENGANGKUT']],
+    ['PUNGUTAN', ['NOMOR AJU','KODE FASILITAS TARIF','KODE JENIS PUNGUTAN','NILAI PUNGUTAN']]
+  ];
+
+  const rows = Object.fromEntries(headers.map(([name, columns]) => [name, [columns]]));
+  for (let i = 0; i < documentCount; i++) {
+    const aju = ajuNumbers[i];
+    const reg = String(27413 + i).padStart(6, '0');
+    rows.HEADER.push([aju,'27','050700','150300',reg,'2026-11-27','2026-11-27','USD',18263,912.24,16660239.12,117.93,114.03,0]);
+    const companyCode = direction === 'IN' ? '8' : '3';
+    const partnerCode = direction === 'IN' ? '3' : '8';
+    const companyName = 'CHINLI PLASTIC MATERIALS INDONESIA';
+    const partnerName = direction === 'IN' ? 'SHOETOWN LIGUNG INDONESIA' : 'CHINLI PLASTIC TECHNOLOGY INDONESIA';
+    rows.ENTITAS.push([aju,'1',companyCode,companyName,'0929190064455000000000']);
+    rows.ENTITAS.push([aju,'2',partnerCode,partnerName,'0929190064455000000001']);
+    rows.ENTITAS.push([aju,'3',direction === 'IN' ? '7' : '7',partnerName,'0929190064455000000001']);
+    if (!missingItemIndexes.includes(i)) rows.BARANG.push([aju,1,'64069049','PSO20148','INSOLE TEST ITEM','SPEC TEST','NPR',100,'CT',10,12.5,13.5,100,1800000,'DUP-A','DUP-B']);
+    for (let m = 1; m <= 2; m++) {
+      rows.BAHANBAKU.push([aju,1,m,'0',m === 1 ? '39211399' : '48169040',`RM-${m}`,`RAW MATERIAL ${m}`,'ST',m * 10,100 + m,1826300 + m,18263,1800000 + m,0]);
+      rows.BAHANBAKUDOKUMEN.push([aju,1,m,'380',`SUP-${m}`,'2026-11-20']);
+      for (const code of ['BM','PPN','PPH']) {
+        rows.BAHANBAKUTARIF.push([aju,1,m,'0',code,'1',code === 'BM' ? 5 : code === 'PPN' ? 11 : 2.5,'3',100,0,200]);
+      }
+    }
+    rows.KEMASAN.push([aju,1,'BG',10,'']);
+    rows.DOKUMEN.push([aju,1,'380',`DOC-${i+1}`,'2026-11-27']);
+    rows.PENGANGKUT.push([aju,1,'MOBIL']);
+    rows.PUNGUTAN.push([aju,'3','PPN',1000]);
+  }
+
+  for (const [name, matrix] of Object.entries(rows)) {
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(matrix), name);
+  }
+  for (const [name, columns] of [['KONTAINER',['NOMOR AJU','SERI','NOMOR KONTAINER']],['BARANGTARIF',['NOMOR AJU','SERI BARANG','KODE PUNGUTAN']]]) {
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([columns]), name);
+  }
+  return workbook;
+}
+
+function asFile(workbook, name = 'ceisa-test.xlsx') {
+  const bytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+  return new File([bytes], name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+test('BC 2.7 IN single-document parses document, item, raw materials and tariffs', async () => {
+  const parsed = await parseBC27File(asFile(makeWorkbook({ documentCount: 1, direction: 'IN' })), COMPANY);
+  assert.equal(parsed.file_format, 'SINGLE_DOCUMENT');
+  assert.equal(parsed.documents.length, 1);
+  assert.equal(parsed.documents[0].document.document_type, 'BC27_IN');
+  assert.equal(parsed.documents[0].document.aju_number, '000027CHD85720261127001942');
+  assert.equal(parsed.documents[0].items.length, 1);
+  assert.equal(parsed.documents[0].raw_materials.length, 2);
+  assert.equal(parsed.documents[0].raw_material_tariffs.length, 6);
+  assert.equal(parsed.documents[0].raw_materials[0].extension.related_documents.length, 1);
+  assert.equal(parsed.documents[0].items[0].extension.raw_fields.filter(field => field.name === 'DUPLIKAT').length, 2);
+  assert.equal(parsed.documents[0].items[0].source_locations[0].sheet, 'BARANG');
+  assert.equal(parsed.summary.error_count, 0);
+});
+
+test('BC 2.7 OUT single-document is classified by configured company entity role', async () => {
+  const parsed = await parseBC27File(asFile(makeWorkbook({ documentCount: 1, direction: 'OUT' })), COMPANY);
+  assert.equal(parsed.documents[0].document.document_type, 'BC27_OUT');
+  assert.equal(parsed.documents[0].document.extension.classification.status, 'CLASSIFIED');
+});
+
+test('one workbook containing multiple Nomor Aju is split into separate documents', async () => {
+  const parsed = await parseBC27File(asFile(makeWorkbook({ documentCount: 2, direction: 'IN' }), 'weekly.xlsx'), COMPANY);
+  assert.equal(parsed.file_format, 'MULTI_DOCUMENT');
+  assert.equal(parsed.documents.length, 2);
+  assert.equal(parsed.summary.item_count, 2);
+  assert.notEqual(parsed.documents[0].document.aju_number, parsed.documents[1].document.aju_number);
+});
+
+test('Partial Import commits valid unique documents and includes original source file', async () => {
+  const parsed = await parseBC27File(asFile(makeWorkbook({ documentCount: 1, direction: 'IN' })), COMPANY);
+  const project = createEmptyProject({ projectName: 'TEST BCP', companyName: COMPANY });
+  const evaluation = evaluateStagedImport(project, [parsed]);
+  const ready = evaluation[0].documents.filter(row => row.status === 'READY').map(row => row.document_id);
+  const result = commitPartialImport(project, [parsed], ready);
+  assert.equal(result.summary.imported_documents, 1);
+  assert.equal(result.project.data.documents.length, 1);
+  assert.equal(result.project.data.items.length, 1);
+  assert.equal(result.project.data.raw_materials.length, 2);
+  assert.equal(result.project.data.raw_material_tariffs.length, 6);
+  assert.equal(result.project.sources.source_registry.length, 1);
+  assert.ok(result.project.sources.files[parsed.source.internal_path] instanceof Uint8Array);
+  assert.deepEqual(validateRegistryIntegrity(result.project), []);
+  const detail = getDocumentView(result.project, result.project.data.documents[0].document_id);
+  assert.equal(detail.items[0].raw_materials.length, 2);
+  assert.equal(detail.items[0].raw_materials[0].tariffs.length, 3);
+});
+
+test('BCP project package round-trips original source bytes with checksum validation', async () => {
+  const project = createEmptyProject({ projectName: 'PACKAGE TEST', companyName: COMPANY });
+  project.data.import_decisions.push({ decision_id: 'DEC-1', candidate_id: 'DUP-DOCUMENT-DOC-1', decision: 'KEEP_BOTH', reason: 'Retain both.' });
+  project.data.export_history.push({ export_id: 'EXPORT-1', preset: 'DOC_REGISTRY', file_name: 'docs.xlsx' });
+  const sourcePath = 'sources/ceisa/SRC-test_test.xlsx';
+  const sourceBytes = new Uint8Array([1, 2, 3]);
+  project.sources.source_registry.push({
+    source_id: 'SRC-test', source_type: 'CEISA', original_file_name: 'test.xlsx',
+    internal_path: sourcePath, sha256: createHash('sha256').update(sourceBytes).digest('hex'), file_size: 3,
+    document_ids: [], import_status: 'IMPORTED'
+  });
+  project.sources.files[sourcePath] = sourceBytes;
+  const archive = await buildProjectArchive(project);
+  const restored = await readProjectArchive(new File([archive.bytes], 'package-test.bcp'));
+  assert.equal(restored.manifest.project_id, project.manifest.project_id);
+  assert.equal(restored.data.import_decisions[0].decision, 'KEEP_BOTH');
+  assert.equal(restored.data.export_history[0].file_name, 'docs.xlsx');
+  assert.deepEqual([...restored.sources.files[sourcePath]], [1, 2, 3]);
+});
+
+test('Partial Import keeps invalid documents staged while importing valid documents', async () => {
+  const parsed = await parseBC27File(asFile(makeWorkbook({ documentCount: 2, direction: 'IN', missingItemIndexes: [1] }), 'partial.xlsx'), COMPANY);
+  const project = createEmptyProject({ projectName: 'PARTIAL TEST', companyName: COMPANY });
+  const evaluation = evaluateStagedImport(project, [parsed]);
+  const ready = evaluation[0].documents.filter(row => row.status === 'READY').map(row => row.document_id);
+  const result = commitPartialImport(project, [parsed], ready);
+  assert.equal(result.summary.imported_documents, 1);
+  assert.equal(result.summary.held_documents, 1);
+  assert.equal(result.project.data.documents.length, 1);
+  assert.equal(result.project.sources.source_registry[0].import_status, 'PARTIAL');
+});
+
+test('duplicate file and duplicate document are not imported as new transactions', async () => {
+  const parsed = await parseBC27File(asFile(makeWorkbook({ documentCount: 1, direction: 'IN' })), COMPANY);
+  const project = createEmptyProject({ projectName: 'DUPLICATE TEST', companyName: COMPANY });
+  const first = evaluateStagedImport(project, [parsed]);
+  const selected = first[0].documents.filter(row => row.status === 'READY').map(row => row.document_id);
+  const imported = commitPartialImport(project, [parsed], selected);
+  const duplicate = evaluateStagedImport(imported.project, [parsed]);
+  assert.equal(duplicate[0].documents[0].status, 'DUPLICATE_FILE');
+});
+
+test('project package rejects source tampering and unsafe ZIP paths', async () => {
+  const project = createEmptyProject({ projectName: 'INTEGRITY TEST', companyName: COMPANY });
+  const sourcePath = 'sources/ceisa/SRC-integrity_test.xlsx';
+  const sourceBytes = new Uint8Array([1, 2, 3]);
+  project.sources.source_registry.push({
+    source_id: 'SRC-integrity', source_type: 'CEISA', original_file_name: 'test.xlsx',
+    internal_path: sourcePath, sha256: createHash('sha256').update(sourceBytes).digest('hex'), file_size: 3, document_ids: [], import_status: 'IMPORTED'
+  });
+  project.sources.files[sourcePath] = sourceBytes;
+  const archive = await buildProjectArchive(project);
+  const entries = unzipSync(archive.bytes);
+  entries[sourcePath] = new Uint8Array([3, 2, 1]);
+  const tampered = zipSync(entries);
+  await assert.rejects(
+    () => readProjectArchive(new File([tampered], 'tampered.bcp')),
+    /Pemeriksaan integritas gagal/
+  );
+  const unsafe = zipSync({ '../outside.txt': strToU8('unsafe') });
+  await assert.rejects(
+    () => readProjectArchive(new File([unsafe], 'unsafe.bcp')),
+    /jalur file yang tidak aman/
+  );
+});
+
+test('Duplicate Review USE_NEW imports a reviewed duplicate and records relationship', async () => {
+  const original = await parseBC27File(asFile(makeWorkbook({ documentCount: 1, direction: 'OUT' })), COMPANY);
+  const project = createEmptyProject({ projectName: 'USE NEW TEST', companyName: COMPANY });
+  const first = commitPartialImport(project, [original], [original.documents[0].document.document_id]);
+  const changedWorkbook = makeWorkbook({ documentCount: 1, direction: 'OUT' });
+  changedWorkbook.Sheets.BARANG['H2'].v = 125;
+  const staged = await parseBC27File(asFile(changedWorkbook, 'revised-source.xlsx'), COMPANY);
+  const candidate = buildDuplicateReview(first.project, [staged]).find(row => row.candidate_type === 'DOCUMENT');
+  assert.ok(candidate);
+  const decided = recordDuplicateDecision(first.project, candidate, 'USE_NEW', 'File CEISA baru dipilih setelah pemeriksaan.');
+  const result = commitPartialImport(decided, [staged], [staged.documents[0].document.document_id]);
+  assert.equal(result.summary.imported_documents, 1);
+  assert.equal(result.project.data.documents.length, 2);
+  assert.equal(result.project.data.relationships.at(-1).relationship_type, 'SUPERSEDED_BY');
+});
+
+test('Duplicate Review USE_EXISTING links source without creating another transaction', async () => {
+  const original = await parseBC27File(asFile(makeWorkbook({ documentCount: 1, direction: 'OUT' })), COMPANY);
+  const project = createEmptyProject({ projectName: 'USE EXISTING TEST', companyName: COMPANY });
+  const first = commitPartialImport(project, [original], [original.documents[0].document.document_id]);
+  const changedWorkbook = makeWorkbook({ documentCount: 1, direction: 'OUT' });
+  changedWorkbook.Sheets.BARANG['H2'].v = 125;
+  const staged = await parseBC27File(asFile(changedWorkbook, 'alternate-source.xlsx'), COMPANY);
+  const candidate = buildDuplicateReview(first.project, [staged]).find(row => row.candidate_type === 'DOCUMENT');
+  const decided = recordDuplicateDecision(first.project, candidate, 'USE_EXISTING', 'Dokumen lama merupakan transaksi yang sama.');
+  const result = commitPartialImport(decided, [staged], [staged.documents[0].document.document_id]);
+  assert.equal(result.summary.imported_documents, 0);
+  assert.equal(result.summary.linked_existing_documents, 1);
+  assert.equal(result.resolved_document_ids.length, 1);
+  assert.equal(result.project.data.documents.length, 1);
+  assert.ok(result.project.data.documents[0].source_refs.includes(staged.source.source_id));
+  assert.equal(result.project.sources.source_registry.length, 2);
+});
+
+test('staging correction is committed with original/current values and audit history', async () => {
+  const parsed = await parseBC27File(asFile(makeWorkbook({ documentCount: 1, direction: 'IN' })), COMPANY);
+  const entry = parsed.documents[0];
+  const corrected = applyStagingCorrection([parsed], {
+    document_id: entry.document.document_id,
+    entity_type: 'ITEM',
+    entity_id: entry.items[0].item_id,
+    field_path: 'current_data.description',
+    new_value: 'Corrected item description',
+    reason: 'Uraian disesuaikan dengan dokumen pendukung.'
+  });
+  const staged = corrected[0];
+  const project = createEmptyProject({ projectName: 'STAGING CORRECTION TEST', companyName: COMPANY });
+  const result = commitPartialImport(project, [staged], [entry.document.document_id]);
+  const importedItem = result.project.data.items[0];
+  assert.equal(importedItem.original_data.description, 'INSOLE TEST ITEM');
+  assert.equal(importedItem.current_data.description, 'Corrected item description');
+  assert.equal(result.project.data.corrections.length, 1);
+  assert.equal(result.project.data.documents[0].amendment_status, 'AMENDED');
+});

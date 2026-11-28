@@ -24,6 +24,9 @@ jobs:
       - name: Build
         working-directory: frontend
         run: npm run build
+      - name: Test BCP engines
+        working-directory: frontend
+        run: npm run test:bcp
       - uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/dist

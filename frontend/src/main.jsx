@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import './style.css';
 import RawMaterial from './modules/raw-material/RawMaterial';
 import BC27Monthly from './modules/bc27-monthly/BC27Monthly';
+import BCP from './modules/bcp/BCP';
 import {validateFiles} from './core/validate';
 import {getCustomers,upsertCustomer,removeCustomer} from './core/customers';
 import {addHistory,listHistory,getHistory,deleteHistory,deleteHistoryOlderThanDays,clearHistory} from './storage/history';
@@ -16,12 +17,13 @@ function Dashboard({open}){
       <div><span className="home-eyebrow">WORKSPACE · EXIM MANAGEMENT</span><h1>Selamat datang di REZA SYSTEM</h1><p className="home-slogan">Setiap kesulitan pasti ada kemudahan</p></div>
       <div className="home-welcome-mark" aria-hidden="true">RS</div>
     </section>
-    <section className="home-section-head"><div><span className="home-section-kicker">YOUR WORKSPACE</span><h2>Modul kerja</h2><p>Pilih modul untuk memulai pekerjaan Anda.</p></div><span className="home-module-count"><b>04</b><span>MODUL AKTIF</span></span></section>
+    <section className="home-section-head"><div><span className="home-section-kicker">YOUR WORKSPACE</span><h2>Modul kerja</h2><p>Pilih modul untuk memulai pekerjaan Anda.</p></div><span className="home-module-count"><b>05</b><span>MODUL / WORKSPACE</span></span></section>
     <section className="home-cards">
       <button type="button" className="home-card" onClick={()=>open('validation')}><span className="home-card-top"><span className="home-icon">✓</span><span className="home-card-status active">Aktif</span></span><h3>EXIM Validation</h3><p>Cross-check Invoice, Packing List, dan Draft EXIM / CEISA secara otomatis, lengkap dengan History dan Customer Master.</p><span className="home-go">Buka modul <span aria-hidden="true">→</span></span></button>
       <button type="button" className="home-card" onClick={()=>open('report')}><span className="home-card-top"><span className="home-icon">▤</span><span className="home-card-status active">Aktif</span></span><h3>WhatsApp Report</h3><p>Buat laporan format WhatsApp dari satu atau beberapa file Excel, dengan pengaturan jalur dan pengecualian nomor daftar.</p><span className="home-go">Buka modul <span aria-hidden="true">→</span></span></button>
       <button type="button" className="home-card" onClick={()=>open('raw-material')}><span className="home-card-top"><span className="home-icon">▧</span><span className="home-card-status active">Aktif</span></span><h3>Pengambilan Data Bahan Baku</h3><p>Ambil data barang CEISA dan bentuk output BAHANBAKU serta BAHANBAKUTARIF.</p><span className="home-go">Buka modul <span aria-hidden="true">→</span></span></button>
       <button type="button" className="home-card" onClick={()=>open('bc27-monthly')}><span className="home-card-top"><span className="home-icon">▦</span><span className="home-card-status active">Aktif</span></span><h3>BC 2.7 Monthly Report</h3><p>Rekapitulasi barang keluar BC 2.7 dari beberapa file CEISA berdasarkan kode barang, satuan, dan kategori.</p><span className="home-go">Buka modul <span aria-hidden="true">→</span></span></button>
+      <button type="button" className="home-card" onClick={()=>open('bcp')}><span className="home-card-top"><span className="home-icon">▤</span><span className="home-card-status planned">Tahap awal</span></span><h3>BCP · Buku Catatan Pemasukan &amp; Pengeluaran</h3><p>Kelola proyek pencatatan kepabeanan lokal dengan file .bcp, Auto-Recovery, dan rencana ekstraksi CEISA.</p><span className="home-go">Buka modul <span aria-hidden="true">→</span></span></button>
       <div className="home-card home-card-disabled"><span className="home-card-top"><span className="home-icon">◷</span><span className="home-card-status planned">Dalam pengembangan</span></span><h3>Monitoring Subkontrak</h3><p>Modul monitoring kontrak dan transaksi subkontrak akan diintegrasikan pada tahap berikutnya.</p><span className="home-go">Belum tersedia</span></div>
     </section>
     <footer className="home-foot">REZA SYSTEM <span>·</span> File Excel diproses langsung di browser Anda</footer>
@@ -48,6 +50,7 @@ function App(){
         <button type="button" className={module==='report'?'selected':''} aria-current={module==='report'?'page':undefined} onClick={()=>openModule('report')}><span>▤</span><b>WhatsApp Report</b></button>
         <button type="button" className={module==='raw-material'?'selected':''} aria-current={module==='raw-material'?'page':undefined} onClick={()=>openModule('raw-material')}><span>▧</span><b>Pengambilan Data Bahan Baku</b></button>
         <button type="button" className={module==='bc27-monthly'?'selected':''} aria-current={module==='bc27-monthly'?'page':undefined} onClick={()=>openModule('bc27-monthly')}><span>▦</span><b>BC 2.7 Monthly Report</b></button>
+        <button type="button" className={module==='bcp'?'selected':''} aria-current={module==='bcp'?'page':undefined} onClick={()=>openModule('bcp')}><span>▤</span><b>BCP</b></button>
         <div className="portal-nav-label portal-nav-label-secondary">PENGEMBANGAN</div>
         <button type="button" className="menu-disabled" disabled title="Akan diintegrasikan pada tahap berikutnya" aria-label="Monitoring Subkontrak, dalam pengembangan"><span>◷</span><b>Monitoring Subkontrak</b></button>
       </nav>
@@ -55,7 +58,7 @@ function App(){
     </aside>
     <div className="portal-stage">
       <header className="portal-topbar">
-        <div className="portal-topbar-context"><span className="portal-topbar-kicker">REZA SYSTEM / WORKSPACE</span><b>{({home:'Dashboard',validation:'EXIM Validation',report:'WhatsApp Report','raw-material':'Pengambilan Data Bahan Baku','bc27-monthly':'BC 2.7 Monthly Report'})[module]||'Workspace'}</b></div>
+        <div className="portal-topbar-context"><span className="portal-topbar-kicker">REZA SYSTEM / WORKSPACE</span><b>{({home:'Dashboard',validation:'EXIM Validation',report:'WhatsApp Report','raw-material':'Pengambilan Data Bahan Baku','bc27-monthly':'BC 2.7 Monthly Report',bcp:'BCP · Buku Catatan Pemasukan & Pengeluaran'})[module]||'Workspace'}</b></div>
         <div className="portal-topbar-meta"><span className="portal-live-dot"></span><span>LOCAL PROCESSING</span><i></i><span>INDONESIA · WIB</span></div>
       </header>
       {module==='home'&&<Dashboard open={openModule}/>}
@@ -73,6 +76,7 @@ function App(){
       </div>
       {module==='raw-material'&&<RawMaterial/>}
       {module==='bc27-monthly'&&<BC27Monthly/>}
+      {module==='bcp'&&<BCP/>}
     </div>
   </div>
 }
